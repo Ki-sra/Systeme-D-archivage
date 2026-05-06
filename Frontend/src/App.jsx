@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { authService } from './services/api';
 import { Sidebar, TopBar } from './components/Navigation';
 import { Dashboard } from './components/Dashboard';
 import { DocumentsList } from './components/DocumentsList';
@@ -12,12 +13,25 @@ import Login from './components/Login';
 import { AnimatePresence, motion } from 'motion/react';
 
 export default function App() {
-  const [user, setUser]           = useState(null);
+  // Restore session from localStorage if token exists
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('auth_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activePage, setActivePage] = useState('dashboard');
   const [selectedPvId, setSelectedPvId] = useState(null);
 
   const handleLogin  = (userData) => { setUser(userData); setActivePage('dashboard'); };
-  const handleLogout = () => { setUser(null); };
+  const handleLogout = async () => {
+    try { await authService.logout(); } catch { /* ignore */ }
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    setUser(null);
+  };
 
   const openPvDetail = (pvId) => { setSelectedPvId(pvId); setActivePage('pv-detail'); };
   const closePvDetail = () => { setSelectedPvId(null); setActivePage('documents'); };

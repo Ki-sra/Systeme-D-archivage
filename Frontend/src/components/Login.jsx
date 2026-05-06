@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { authService } from '../services/api';
 
 export default function Login({ onLogin }) {
   const [email, setEmail]       = useState('');
@@ -19,11 +20,23 @@ export default function Login({ onLogin }) {
     }
 
     setLoading(true);
-    // TODO Phase 7: replace with axios.post('/api/auth/login', { email, password })
-    // For now, simulate a small delay then call onLogin
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    onLogin({ name: 'Admin', email, role: 'admin' });
+    try {
+      const { data } = await authService.login(email, password);
+
+      // Persist token and user in localStorage
+      localStorage.setItem('auth_token', data.token);
+      localStorage.setItem('auth_user',  JSON.stringify(data.user));
+
+      onLogin(data.user);
+    } catch (err) {
+      const msg =
+        err.response?.data?.errors?.email?.[0] ||
+        err.response?.data?.message ||
+        'Une erreur est survenue. Vérifiez votre connexion.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
