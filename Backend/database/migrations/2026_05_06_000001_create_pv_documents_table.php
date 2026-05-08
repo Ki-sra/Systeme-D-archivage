@@ -23,13 +23,21 @@ return new class extends Migration
                 'ARCHIVE_COMPLET',
             ])->default('BROUILLON');
 
-            // Academic context
-            $table->string('academic_year', 20);          // e.g. "2023-2024"
-            $table->string('niveau', 50);                  // e.g. "Licence 1", "TS"
-            $table->string('filiere', 100);                // e.g. "Génie Informatique"
-            $table->string('groupe', 20)->nullable();      // e.g. "G1"
-            $table->enum('session', ['Ordinaire', 'Rattrapage'])->nullable();
-            $table->string('module', 100)->nullable();     // for PV_CC and PV_EFM
+            // Academic context (PV-FF fields — nullable for PV-CC and PV-EFM)
+            $table->string('academic_year', 20)->nullable(); // e.g. "2023-2024"
+            $table->string('niveau', 50)->nullable();         // e.g. "TS"
+            $table->string('filiere', 100)->nullable();       // e.g. "Génie Informatique"
+            $table->string('groupe', 20)->nullable();         // e.g. "G1"
+
+            // Child PV link — PV-CC and PV-EFM reference their PV-FF parent
+            $table->foreignId('pv_ff_id')->nullable()->constrained('pv_documents')->nullOnDelete();
+
+            // PV-CC specific
+            $table->string('semester', 20)->nullable();       // e.g. "Semestre 1"
+
+            // PV-EFM and PV-CC specific
+            $table->string('module', 100)->nullable();
+            $table->enum('session', ['Ordinaire', 'Rattrapage'])->nullable(); // PV-EFM
 
             // Physical archive location
             $table->string('physical_location', 100)->nullable(); // e.g. "A2/3/15"

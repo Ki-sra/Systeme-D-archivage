@@ -18,6 +18,8 @@ class PvDocument extends Model
         'niveau',
         'filiere',
         'groupe',
+        'pv_ff_id',
+        'semester',
         'session',
         'module',
         'physical_location',
@@ -43,6 +45,18 @@ class PvDocument extends Model
     public function validator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'validated_by');
+    }
+
+    /** Parent PV-FF document (for PV-CC and PV-EFM only) */
+    public function parentPvFf(): BelongsTo
+    {
+        return $this->belongsTo(PvDocument::class, 'pv_ff_id');
+    }
+
+    /** Child PV-CC and PV-EFM documents (for PV-FF only) */
+    public function children(): HasMany
+    {
+        return $this->hasMany(PvDocument::class, 'pv_ff_id');
     }
 
     /** All uploaded scan files for this PV */

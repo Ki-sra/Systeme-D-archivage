@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\PvDocumentController;
+use App\Http\Controllers\Api\PvFileController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,12 +35,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me',     [AuthController::class, 'me']);
     });
 
-    // ── PV Documents (Phase 3) ────────────────────────────────────
-    // Route::apiResource('pv-documents', PvDocumentController::class);
+    // ── PV Documents ──────────────────────────────────────────────
+    Route::apiResource('pv-documents', PvDocumentController::class);
+    Route::patch('pv-documents/{pvDocument}/status', [PvDocumentController::class, 'updateStatus']);
 
-    // ── File Upload (Phase 4) ─────────────────────────────────────
-    // Route::post('pv-documents/{id}/files', [PvFileController::class, 'store']);
-    // Route::delete('pv-files/{id}',         [PvFileController::class, 'destroy']);
+    // ── File Upload & Download ─────────────────────────────────────
+    Route::post('pv-documents/{pvDocument}/files',  [PvFileController::class, 'store']);
+    Route::get('pv-files/{pvFile}/download',        [PvFileController::class, 'download']);
+    Route::delete('pv-files/{pvFile}',              [PvFileController::class, 'destroy']);
 
     // ── Search (Phase 5) ──────────────────────────────────────────
     // Route::get('pv-documents/search', [PvDocumentController::class, 'search']);
