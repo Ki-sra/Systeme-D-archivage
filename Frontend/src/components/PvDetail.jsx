@@ -1,44 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  ArrowLeft,
-  FileText,
-  Download,
-  CheckCircle,
-  Clock,
-  Upload,
-  Trash2,
-  Edit3,
-  AlertTriangle,
-  File,
-  Eye,
-  ChevronRight,
-  User,
-  Calendar,
-  MapPin,
-  BookOpen,
-  Users,
+  ArrowLeft, FileText, Download, CheckCircle,
+  Clock, Upload, Trash2, Edit3, AlertTriangle,
+  File, Eye, ChevronRight, User, Calendar,
+  MapPin, BookOpen, Users, AlertCircle, X, Save,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import api from '../services/api';
 
-// ── Status lifecycle definition ───────────────────────────────────
+// ── Status lifecycle ───────────────────────────────────────────────
 const LIFECYCLE = [
-  { key: 'BROUILLON',          label: 'Brouillon',          color: 'bg-slate-400'  },
-  { key: 'EN_ATTENTE',         label: 'En attente',         color: 'bg-amber-400'  },
-  { key: 'VALIDE_PAPIER',      label: 'Validé (papier)',    color: 'bg-blue-400'   },
-  { key: 'ARCHIVE_NUMERIQUE',  label: 'Archivé numérique',  color: 'bg-violet-500' },
-  { key: 'ARCHIVE_COMPLET',    label: 'Archive complète',   color: 'bg-green-500'  },
+  { key: 'BROUILLON',         label: 'Brouillon',         color: 'bg-slate-400'  },
+  { key: 'EN_ATTENTE',        label: 'En attente',        color: 'bg-amber-400'  },
+  { key: 'VALIDE_PAPIER',     label: 'Validé (papier)',   color: 'bg-blue-400'   },
+  { key: 'ARCHIVE_NUMERIQUE', label: 'Archivé numérique', color: 'bg-violet-500' },
+  { key: 'ARCHIVE_COMPLET',   label: 'Archive complète',  color: 'bg-green-500'  },
 ];
 
 const STATUS_BADGE = {
-  BROUILLON:          'bg-slate-100 text-slate-600 border-slate-200',
-  EN_ATTENTE:         'bg-amber-50 text-amber-700 border-amber-200',
-  VALIDE_PAPIER:      'bg-blue-50 text-blue-700 border-blue-200',
-  ARCHIVE_NUMERIQUE:  'bg-violet-50 text-violet-700 border-violet-200',
-  ARCHIVE_COMPLET:    'bg-green-50 text-green-700 border-green-200',
+  BROUILLON:         'bg-slate-100 text-slate-600 border-slate-200',
+  EN_ATTENTE:        'bg-amber-50 text-amber-700 border-amber-200',
+  VALIDE_PAPIER:     'bg-blue-50 text-blue-700 border-blue-200',
+  ARCHIVE_NUMERIQUE: 'bg-violet-50 text-violet-700 border-violet-200',
+  ARCHIVE_COMPLET:   'bg-green-50 text-green-700 border-green-200',
 };
 
-// ── Sub-components ────────────────────────────────────────────────
+const fmtDate = (iso) =>
+  iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
+// ── Sub-components ────────────────────────────────────────────────
 const InfoRow = ({ icon: Icon, label, value }) => (
   <div className="flex items-start gap-3">
     <div className="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-secondary flex-shrink-0 mt-0.5">
@@ -62,15 +52,11 @@ const StatusTimeline = ({ currentStatus }) => {
           <React.Fragment key={step.key}>
             <div className="flex flex-col items-center gap-1.5">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                done
-                  ? `${step.color} border-transparent text-white`
-                  : 'bg-surface-container border-outline-variant text-outline'
+                done ? `${step.color} border-transparent text-white` : 'bg-surface-container border-outline-variant text-outline'
               } ${current ? 'ring-4 ring-offset-2 ring-primary/20' : ''}`}>
                 {done ? <CheckCircle size={16} /> : <Clock size={14} />}
               </div>
-              <p className={`text-[9px] font-black uppercase tracking-wider text-center w-16 leading-tight ${
-                done ? 'text-primary' : 'text-outline'
-              }`}>
+              <p className={`text-[9px] font-black uppercase tracking-wider text-center w-16 leading-tight ${done ? 'text-primary' : 'text-outline'}`}>
                 {step.label}
               </p>
             </div>
@@ -86,44 +72,179 @@ const StatusTimeline = ({ currentStatus }) => {
 
 // ── Main Component ────────────────────────────────────────────────
 export const PvDetail = ({ pvId, onBack }) => {
-  // Document data — will be fetched from API by pvId
-  const [document, setDocument] = useState(null);
+  const [document,     setDocument]     = useState(null);
+  const [files,        setFiles]        = useState([]);
+  const [history,      setHistory]      = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState('');
 
-  // Files attached to this PV — from API
-  const [files, setFiles] = useState([]);
+  // Status update
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
 
-  // Activity history for this PV — from API
-  const [history, setHistory] = useState([]);
+  // File upload
+  const [uploading,  setUploading]  = useState(false);
+  const [uploadErr,  setUploadErr]  = useState('');
 
-  const [loading, setLoading] = useState(false);
+  // Delete confirm
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting,      setDeleting]      = useState(false);
 
-  // Placeholder for when data hasn't loaded yet
-  const status = document?.status ?? 'BROUILLON';
+  // ── Fetch document ────────────────────────────────────────────
+  const fetchDocument = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await api.get(`/pv-documents/${pvId}`);
+      setDocument(data.document);
+      setFiles(data.document.files ?? []);
+      setHistory(data.history ?? []);
+    } catch (err) {
+      setError('Impossible de charger ce document.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { if (pvId) fetchDocument(); }, [pvId]);
+
+  // ── Status update ─────────────────────────────────────────────
+  const handleStatusUpdate = async (newStatus) => {
+    setUpdatingStatus(true);
+    setShowStatusMenu(false);
+    try {
+      const { data } = await api.patch(`/pv-documents/${pvId}/status`, { status: newStatus });
+      setDocument(data);
+      // Refresh history
+      const { data: fresh } = await api.get(`/pv-documents/${pvId}`);
+      setHistory(fresh.history ?? []);
+    } catch (err) {
+      setError(err.response?.data?.message ?? 'Impossible de mettre à jour le statut.');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  // ── File upload ───────────────────────────────────────────────
+  const handleFileUpload = async (e) => {
+    const fileList = Array.from(e.target.files);
+    if (!fileList.length) return;
+    setUploading(true);
+    setUploadErr('');
+    try {
+      await Promise.all(
+        fileList.map((file) => {
+          const fd = new FormData();
+          fd.append('file', file);
+          return api.post(`/pv-documents/${pvId}/files`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        })
+      );
+      // Refresh files list
+      const { data } = await api.get(`/pv-documents/${pvId}`);
+      setFiles(data.document.files ?? []);
+    } catch (err) {
+      setUploadErr(err.response?.data?.message ?? 'Erreur lors du téléversement.');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // ── File download ─────────────────────────────────────────────
+  const handleDownload = async (file) => {
+    try {
+      const response = await api.get(`/pv-files/${file.id}/download`, { responseType: 'blob' });
+      const url  = URL.createObjectURL(response.data);
+      const link = document.createElement('a'); // safe: DOM, not state
+      link.href     = url;
+      link.download = file.original_name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Impossible de télécharger ce fichier.');
+    }
+  };
+
+  // ── File delete ───────────────────────────────────────────────
+  const handleFileDelete = async (fileId) => {
+    try {
+      await api.delete(`/pv-files/${fileId}`);
+      setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    } catch {
+      setError('Impossible de supprimer ce fichier.');
+    }
+  };
+
+  // ── Document delete ───────────────────────────────────────────
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`/pv-documents/${pvId}`);
+      onBack?.();
+    } catch (err) {
+      setError(err.response?.data?.message ?? 'Impossible de supprimer ce document.');
+      setDeleting(false);
+      setDeleteConfirm(false);
+    }
+  };
+
+  // ── Next possible statuses ────────────────────────────────────
+  const currentIdx   = LIFECYCLE.findIndex((s) => s.key === document?.status);
+  const nextStatuses = LIFECYCLE.filter((_, i) => i === currentIdx + 1 || i === currentIdx - 1);
+
+  // ── Loading / error states ────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div className="h-10 bg-surface-container-low rounded-xl w-1/3" />
+        <div className="h-32 bg-surface-container-low rounded-2xl" />
+        <div className="h-64 bg-surface-container-low rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (error && !document) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <AlertCircle size={40} className="text-red-400" />
+        <p className="text-red-600 font-bold">{error}</p>
+        <button onClick={onBack} className="px-6 py-2 bg-primary text-white rounded-xl text-sm font-black uppercase tracking-widest">
+          Retour
+        </button>
+      </div>
+    );
+  }
+
+  const docLabel = document?.type === 'PV_FF'
+    ? `${document.filiere} · G${document.groupe}`
+    : document?.module ?? `PV #${document?.id}`;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
 
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          <AlertCircle size={18} className="flex-shrink-0" />
+          <p className="text-sm font-semibold flex-1">{error}</p>
+          <button onClick={() => setError('')}><X size={16} /></button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start gap-4">
-        <button
-          onClick={onBack}
-          className="p-2 border border-outline-variant rounded-xl bg-white text-secondary hover:text-primary hover:bg-surface-container-low transition-all flex-shrink-0 mt-1"
-        >
+        <button onClick={onBack} className="p-2 border border-outline-variant rounded-xl bg-white text-secondary hover:text-primary hover:bg-surface-container-low transition-all flex-shrink-0 mt-1">
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1">
           <div className="flex items-center gap-2 text-outline mb-1">
-            <button onClick={onBack} className="text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors">
-              Documents PV
-            </button>
+            <button onClick={onBack} className="text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors">Documents PV</button>
             <ChevronRight size={12} />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
-              {document?.id ? `REF: #${document.id}` : 'Détail du document'}
-            </span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">REF: #{document?.id}</span>
           </div>
-          <h1 className="text-3xl font-black text-primary tracking-tight">
-            {document?.title ?? 'Chargement…'}
-          </h1>
+          <h1 className="text-3xl font-black text-primary tracking-tight">{docLabel}</h1>
           {document?.status && (
             <span className={`inline-flex items-center mt-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${STATUS_BADGE[document.status]}`}>
               {LIFECYCLE.find((s) => s.key === document.status)?.label ?? document.status}
@@ -132,24 +253,53 @@ export const PvDetail = ({ pvId, onBack }) => {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 flex-shrink-0">
-          <button className="flex items-center gap-2 px-4 py-2 border border-outline-variant bg-white text-secondary hover:text-primary hover:bg-surface-container-low rounded-xl font-bold text-xs uppercase tracking-wider transition-all">
-            <Edit3 size={16} />
-            Modifier
+        <div className="flex gap-2 flex-shrink-0 relative">
+          <button
+            onClick={() => setShowStatusMenu((v) => !v)}
+            disabled={updatingStatus}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-primary-container transition-all shadow-lg shadow-primary/10 disabled:opacity-60"
+          >
+            {updatingStatus ? (
+              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+            ) : <CheckCircle size={16} />}
+            Changer statut
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-primary-container transition-all shadow-lg shadow-primary/10">
-            <CheckCircle size={16} />
-            Valider
-          </button>
+
+          {/* Status dropdown */}
+          <AnimatePresence>
+            {showStatusMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="absolute top-12 right-0 z-50 bg-white border border-outline-variant rounded-xl shadow-xl overflow-hidden min-w-[200px]"
+              >
+                {nextStatuses.map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => handleStatusUpdate(s.key)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-xs font-black uppercase tracking-wider text-left hover:bg-surface-container-low transition-colors"
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${s.color}`} />
+                    {s.label}
+                  </button>
+                ))}
+                {nextStatuses.length === 0 && (
+                  <p className="px-4 py-3 text-xs text-secondary font-medium">Aucun changement disponible.</p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
       {/* Status timeline */}
       <div className="bg-white border border-outline-variant rounded-2xl p-8 shadow-sm">
-        <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-8">
-          Cycle de vie du document
-        </h3>
-        <StatusTimeline currentStatus={status} />
+        <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-8">Cycle de vie du document</h3>
+        <StatusTimeline currentStatus={document?.status ?? 'BROUILLON'} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -157,63 +307,60 @@ export const PvDetail = ({ pvId, onBack }) => {
         {/* Left: Info + Files */}
         <div className="lg:col-span-8 space-y-8">
 
-          {/* Document metadata */}
+          {/* Metadata */}
           <div className="bg-white border border-outline-variant rounded-2xl p-8 shadow-sm">
-            <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-6">
-              Informations académiques
-            </h3>
-
-            {loading ? (
-              <div className="grid grid-cols-2 gap-6">
-                {[1,2,3,4,5,6].map((i) => (
-                  <div key={i} className="h-12 bg-surface-container-low rounded-xl animate-pulse" />
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <InfoRow icon={FileText}  label="Type de PV"         value={document?.type} />
-                <InfoRow icon={Calendar}  label="Année universitaire" value={document?.academic_year} />
-                <InfoRow icon={BookOpen}  label="Filière"             value={document?.filiere} />
-                <InfoRow icon={Users}     label="Niveau & Groupe"     value={document ? `${document.niveau} — ${document.groupe ?? 'N/A'}` : null} />
-                <InfoRow icon={Clock}     label="Session"             value={document?.session} />
-                <InfoRow icon={MapPin}    label="Localisation physique" value={document?.physical_location} />
-                <InfoRow icon={User}      label="Créé par"            value={document?.creator?.name} />
-                <InfoRow icon={Calendar}  label="Date de création"    value={document?.created_at} />
+            <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-6">Informations académiques</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <InfoRow icon={FileText}  label="Type de PV"           value={document?.type} />
+              <InfoRow icon={Calendar}  label="Année universitaire"  value={document?.academic_year} />
+              <InfoRow icon={BookOpen}  label="Filière / Module"     value={document?.filiere ?? document?.module} />
+              <InfoRow icon={Users}     label="Niveau & Groupe"      value={document?.niveau ? `${document.niveau} — G${document.groupe ?? 'N/A'}` : (document?.semester ?? document?.session)} />
+              <InfoRow icon={MapPin}    label="Localisation physique" value={document?.physical_location} />
+              <InfoRow icon={User}      label="Créé par"             value={document?.creator?.name} />
+              <InfoRow icon={Calendar}  label="Date de création"     value={fmtDate(document?.created_at)} />
+              {document?.validator && (
+                <InfoRow icon={CheckCircle} label="Validé par" value={document.validator?.name} />
+              )}
+            </div>
+            {document?.notes && (
+              <div className="mt-6 p-4 bg-surface-container-low/50 rounded-xl border border-outline-variant/30">
+                <p className="text-[10px] font-black text-outline uppercase tracking-widest mb-1">Notes</p>
+                <p className="text-sm font-medium text-on-surface">{document.notes}</p>
               </div>
             )}
           </div>
 
-          {/* Uploaded files */}
+          {/* Files */}
           <div className="bg-white border border-outline-variant rounded-2xl p-8 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-black text-primary uppercase tracking-widest">
-                Scans & Fichiers ({files.length})
-              </h3>
-              <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-primary-container transition-all shadow-sm">
-                <Upload size={16} />
-                Ajouter un scan
-              </button>
+              <h3 className="text-sm font-black text-primary uppercase tracking-widest">Scans & Fichiers ({files.length})</h3>
+              <label className={`flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-sm cursor-pointer hover:bg-primary-container ${uploading ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+                {uploading ? (
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                ) : <Upload size={16} />}
+                {uploading ? 'Envoi…' : 'Ajouter un scan'}
+              </label>
             </div>
+
+            {uploadErr && (
+              <p className="mb-4 text-xs text-red-600 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2">{uploadErr}</p>
+            )}
 
             {files.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 gap-3 border-2 border-dashed border-outline-variant/40 rounded-2xl">
                 <File size={36} className="text-outline-variant" />
-                <p className="text-sm font-bold text-secondary uppercase tracking-widest">
-                  Aucun fichier joint
-                </p>
-                <p className="text-xs text-outline font-medium">
-                  Les scans apparaîtront ici une fois uploadés.
-                </p>
+                <p className="text-sm font-bold text-secondary uppercase tracking-widest">Aucun fichier joint</p>
+                <p className="text-xs text-outline font-medium">Les scans apparaîtront ici une fois uploadés.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {files.map((file) => (
-                  <motion.div
-                    key={file.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-3 p-4 bg-surface-container-low/50 border border-outline-variant/30 rounded-xl group hover:shadow-sm transition-all"
-                  >
+                  <motion.div key={file.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 p-4 bg-surface-container-low/50 border border-outline-variant/30 rounded-xl group hover:shadow-sm transition-all">
                     <div className="w-10 h-10 bg-red-50 text-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
                       <FileText size={20} />
                     </div>
@@ -224,9 +371,12 @@ export const PvDetail = ({ pvId, onBack }) => {
                       </p>
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-1.5 text-secondary hover:text-primary transition-colors"><Eye size={16} /></button>
-                      <button className="p-1.5 text-secondary hover:text-primary transition-colors"><Download size={16} /></button>
-                      <button className="p-1.5 text-secondary hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                      <button onClick={() => handleDownload(file)} className="p-1.5 text-secondary hover:text-primary transition-colors" title="Télécharger">
+                        <Download size={16} />
+                      </button>
+                      <button onClick={() => handleFileDelete(file.id)} className="p-1.5 text-secondary hover:text-red-600 transition-colors" title="Supprimer">
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </motion.div>
                 ))}
@@ -235,13 +385,12 @@ export const PvDetail = ({ pvId, onBack }) => {
           </div>
         </div>
 
-        {/* Right: History */}
+        {/* Right: History + Danger zone */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white border border-outline-variant rounded-2xl p-6 shadow-sm">
-            <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-6">
-              Historique des actions
-            </h3>
 
+          {/* History */}
+          <div className="bg-white border border-outline-variant rounded-2xl p-6 shadow-sm">
+            <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-6">Historique des actions</h3>
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 gap-2 text-secondary">
                 <Clock size={28} className="text-outline-variant" />
@@ -259,7 +408,7 @@ export const PvDetail = ({ pvId, onBack }) => {
                       <div className="flex-1 pt-0.5">
                         <p className="text-xs font-black text-primary">{entry.action}</p>
                         <p className="text-[10px] font-medium text-secondary">{entry.user?.name}</p>
-                        <p className="text-[10px] font-bold text-outline mt-1">{entry.created_at}</p>
+                        <p className="text-[10px] font-bold text-outline mt-1">{fmtDate(entry.created_at)}</p>
                       </div>
                     </div>
                   ))}
@@ -274,13 +423,35 @@ export const PvDetail = ({ pvId, onBack }) => {
               <AlertTriangle size={16} />
               <h3 className="text-xs font-black uppercase tracking-widest">Zone de danger</h3>
             </div>
-            <p className="text-xs font-medium text-red-600 leading-relaxed">
-              La suppression d'un document est irréversible.
-            </p>
-            <button className="w-full flex items-center justify-center gap-2 py-2.5 border border-red-300 bg-white text-red-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">
-              <Trash2 size={14} />
-              Supprimer ce PV
-            </button>
+            <p className="text-xs font-medium text-red-600 leading-relaxed">La suppression d'un document est irréversible.</p>
+
+            {!deleteConfirm ? (
+              <button
+                onClick={() => setDeleteConfirm(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 border border-red-300 bg-white text-red-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
+              >
+                <Trash2 size={14} />
+                Supprimer ce PV
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-black text-red-700 text-center">Confirmer la suppression ?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setDeleteConfirm(false)} className="flex-1 py-2 border border-red-200 bg-white text-red-600 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-red-50 transition-all">
+                    Annuler
+                  </button>
+                  <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-red-700 transition-all disabled:opacity-60 flex items-center justify-center gap-1">
+                    {deleting ? (
+                      <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                      </svg>
+                    ) : <Trash2 size={13} />}
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
