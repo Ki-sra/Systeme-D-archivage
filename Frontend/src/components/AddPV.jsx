@@ -1,41 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   School, Upload, Save, Info, Plus,
   ChevronRight, FileText, X, Database,
-  FileBox, BookOpen, ClipboardList,
+  FileBox, BookOpen, ClipboardList, AlertCircle,
 } from 'lucide-react';
+import api from '../services/api';
 
-// ── Mock data (replace with API calls in Phase 8) ─────────────────
-const MOCK_FILIERES = [
-  'Génie Informatique',
-  'Développement Digital',
-  'Infrastructure Digitale',
-  'Management & Gestion',
-  'Marketing Digital',
-  'Hôtellerie & Restauration',
-];
+// ── Static options ─────────────────────────────────────────────────
+const NIVEAUX        = ['Technicien', 'Technicien Spécialisé (TS)', 'BTS'];
+const ACADEMIC_YEARS = ['2024-2025', '2023-2024', '2022-2023', '2021-2022'];
+const SEMESTERS      = ['Semestre 1', 'Semestre 2'];
 
-const MOCK_NIVEAUX = ['Technicien', 'Technicien Spécialisé (TS)', 'BTS'];
-
-const MOCK_ACADEMIC_YEARS = ['2024-2025', '2023-2024', '2022-2023', '2021-2022'];
-
-const MOCK_SEMESTERS = ['Semestre 1', 'Semestre 2'];
-
-// Mock existing PV-FF documents (parent documents to link children to)
-const MOCK_PV_FF_LIST = [
-  { id: 1, label: 'PV-FF — GI / TS — G1 — 2023-2024' },
-  { id: 2, label: 'PV-FF — Dev Digital / TS — G2 — 2023-2024' },
-  { id: 3, label: 'PV-FF — Management / BTS — G1 — 2022-2023' },
-  { id: 4, label: 'PV-FF — Infra Digitale / TS — G3 — 2023-2024' },
-];
-
-// ── PV Type config ─────────────────────────────────────────────────
 const PV_TYPES = [
   {
     key: 'PV_FF',
     label: 'PV Fin de Formation',
     short: 'PV-FF',
-    description: 'Document global des résultats finaux d\'une promotion.',
+    description: "Document global des résultats finaux d'une promotion.",
     icon: FileBox,
     color: 'border-purple-400 bg-purple-50 text-purple-700',
     activeColor: 'border-purple-500 bg-purple-500 text-white shadow-lg shadow-purple-200',
@@ -53,7 +34,7 @@ const PV_TYPES = [
     key: 'PV_EFM',
     label: 'PV Examen Fin de Module',
     short: 'PV-EFM',
-    description: 'Résultats d\'examen final par module et session.',
+    description: "Résultats d'examen final par module et session.",
     icon: ClipboardList,
     color: 'border-green-400 bg-green-50 text-green-700',
     activeColor: 'border-green-500 bg-green-500 text-white shadow-lg shadow-green-200',
@@ -66,143 +47,108 @@ const FieldLabel = ({ children }) => (
     {children}
   </label>
 );
-
-const inputCls = 'w-full bg-surface-container-low/50 border border-outline-variant/50 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary focus:bg-white outline-none transition-all';
+const inputCls  = 'w-full bg-surface-container-low/50 border border-outline-variant/50 rounded-xl px-4 py-3 text-sm font-bold focus:ring-2 focus:ring-primary focus:bg-white outline-none transition-all';
 const selectCls = `${inputCls} appearance-none cursor-pointer`;
 
-// ── Form sections ──────────────────────────────────────────────────
-
-// PV-FF: groupe, filiere, niveau, academic_year
+// ── PV-FF form ─────────────────────────────────────────────────────
 const FormPvFF = ({ form, onChange }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
     <div className="space-y-1.5">
       <FieldLabel>Année universitaire *</FieldLabel>
       <select value={form.academicYear} onChange={(e) => onChange('academicYear', e.target.value)} className={selectCls}>
         <option value="">— Sélectionner —</option>
-        {MOCK_ACADEMIC_YEARS.map((y) => <option key={y}>{y}</option>)}
+        {ACADEMIC_YEARS.map((y) => <option key={y}>{y}</option>)}
       </select>
     </div>
-
     <div className="space-y-1.5">
       <FieldLabel>Niveau d'étude *</FieldLabel>
       <select value={form.niveau} onChange={(e) => onChange('niveau', e.target.value)} className={selectCls}>
         <option value="">— Sélectionner —</option>
-        {MOCK_NIVEAUX.map((n) => <option key={n}>{n}</option>)}
+        {NIVEAUX.map((n) => <option key={n}>{n}</option>)}
       </select>
     </div>
-
     <div className="space-y-1.5">
       <FieldLabel>Filière / Programme *</FieldLabel>
-      <select value={form.filiere} onChange={(e) => onChange('filiere', e.target.value)} className={selectCls}>
-        <option value="">— Sélectionner —</option>
-        {MOCK_FILIERES.map((f) => <option key={f}>{f}</option>)}
-      </select>
+      <input type="text" value={form.filiere} onChange={(e) => onChange('filiere', e.target.value)} placeholder="Ex: Génie Informatique" className={inputCls} />
     </div>
-
     <div className="space-y-1.5">
       <FieldLabel>Groupe *</FieldLabel>
-      <input
-        type="text"
-        value={form.groupe}
-        onChange={(e) => onChange('groupe', e.target.value)}
-        placeholder="Ex: G1"
-        className={inputCls}
-      />
+      <input type="text" value={form.groupe} onChange={(e) => onChange('groupe', e.target.value)} placeholder="Ex: G1" className={inputCls} />
     </div>
   </div>
 );
 
-// PV-CC: parent PV-FF, module, semester
-const FormPvCC = ({ form, onChange }) => (
+// ── PV-CC form ─────────────────────────────────────────────────────
+const FormPvCC = ({ form, onChange, pvFfList, pvFfLoading }) => (
   <div className="space-y-6">
-    {/* Info banner */}
     <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
       <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
       <p className="text-xs font-medium text-blue-700 leading-relaxed">
         Un PV-CC est lié à un PV Fin de Formation existant. Sélectionnez d'abord le PV-FF parent.
       </p>
     </div>
-
     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
       <div className="space-y-1.5 md:col-span-2">
         <FieldLabel>PV Fin de Formation parent *</FieldLabel>
-        <select value={form.pvFfId} onChange={(e) => onChange('pvFfId', e.target.value)} className={selectCls}>
-          <option value="">— Sélectionner le PV-FF —</option>
-          {MOCK_PV_FF_LIST.map((pv) => (
-            <option key={pv.id} value={pv.id}>{pv.label}</option>
+        <select value={form.pvFfId} onChange={(e) => onChange('pvFfId', e.target.value)} className={selectCls} disabled={pvFfLoading}>
+          <option value="">{pvFfLoading ? 'Chargement…' : '— Sélectionner le PV-FF —'}</option>
+          {pvFfList.map((pv) => (
+            <option key={pv.id} value={pv.id}>
+              {pv.filiere} · {pv.niveau} · G{pv.groupe} · {pv.academic_year}
+            </option>
           ))}
         </select>
       </div>
-
       <div className="space-y-1.5">
         <FieldLabel>Module *</FieldLabel>
-        <input
-          type="text"
-          value={form.module}
-          onChange={(e) => onChange('module', e.target.value)}
-          placeholder="Ex: Algorithmique et Structures de données"
-          className={inputCls}
-        />
+        <input type="text" value={form.module} onChange={(e) => onChange('module', e.target.value)} placeholder="Ex: Algorithmique et Structures de données" className={inputCls} />
       </div>
-
       <div className="space-y-1.5">
         <FieldLabel>Semestre *</FieldLabel>
         <select value={form.semester} onChange={(e) => onChange('semester', e.target.value)} className={selectCls}>
           <option value="">— Sélectionner —</option>
-          {MOCK_SEMESTERS.map((s) => <option key={s}>{s}</option>)}
+          {SEMESTERS.map((s) => <option key={s}>{s}</option>)}
         </select>
       </div>
     </div>
   </div>
 );
 
-// PV-EFM: parent PV-FF, module, session
-const FormPvEFM = ({ form, onChange }) => (
+// ── PV-EFM form ────────────────────────────────────────────────────
+const FormPvEFM = ({ form, onChange, pvFfList, pvFfLoading }) => (
   <div className="space-y-6">
-    {/* Info banner */}
     <div className="flex items-start gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
       <Info size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
       <p className="text-xs font-medium text-green-700 leading-relaxed">
         Un PV-EFM est lié à un PV Fin de Formation existant. Indiquez le module et la session concernés.
       </p>
     </div>
-
     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
       <div className="space-y-1.5 md:col-span-2">
         <FieldLabel>PV Fin de Formation parent *</FieldLabel>
-        <select value={form.pvFfId} onChange={(e) => onChange('pvFfId', e.target.value)} className={selectCls}>
-          <option value="">— Sélectionner le PV-FF —</option>
-          {MOCK_PV_FF_LIST.map((pv) => (
-            <option key={pv.id} value={pv.id}>{pv.label}</option>
+        <select value={form.pvFfId} onChange={(e) => onChange('pvFfId', e.target.value)} className={selectCls} disabled={pvFfLoading}>
+          <option value="">{pvFfLoading ? 'Chargement…' : '— Sélectionner le PV-FF —'}</option>
+          {pvFfList.map((pv) => (
+            <option key={pv.id} value={pv.id}>
+              {pv.filiere} · {pv.niveau} · G{pv.groupe} · {pv.academic_year}
+            </option>
           ))}
         </select>
       </div>
-
       <div className="space-y-1.5">
         <FieldLabel>Module *</FieldLabel>
-        <input
-          type="text"
-          value={form.module}
-          onChange={(e) => onChange('module', e.target.value)}
-          placeholder="Ex: Base de données"
-          className={inputCls}
-        />
+        <input type="text" value={form.module} onChange={(e) => onChange('module', e.target.value)} placeholder="Ex: Base de données" className={inputCls} />
       </div>
-
       <div className="space-y-1.5">
         <FieldLabel>Session *</FieldLabel>
         <div className="grid grid-cols-2 gap-3">
           {['Ordinaire', 'Rattrapage'].map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => onChange('session', s)}
+            <button key={s} type="button" onClick={() => onChange('session', s)}
               className={`py-3 rounded-xl border-2 font-black text-xs uppercase tracking-wider transition-all ${
                 form.session === s
                   ? 'border-green-500 bg-green-500 text-white shadow-md'
                   : 'border-outline-variant/50 bg-surface-container-low/30 text-secondary hover:border-green-400'
-              }`}
-            >
+              }`}>
               {s}
             </button>
           ))}
@@ -214,38 +160,105 @@ const FormPvEFM = ({ form, onChange }) => (
 
 // ── Main Component ─────────────────────────────────────────────────
 export const AddPV = ({ onNavigate }) => {
-  const [pvType, setPvType]   = useState('PV_FF');
-  const [dragActive, setDragActive] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [pvType,        setPvType]        = useState('PV_FF');
+  const [dragActive,    setDragActive]    = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]); // File objects
+  const [pvFfList,      setPvFfList]      = useState([]);
+  const [pvFfLoading,   setPvFfLoading]   = useState(false);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [error,         setError]         = useState('');
+  const [fieldErrors,   setFieldErrors]   = useState({});
 
-  // Shared form state for all types
   const [form, setForm] = useState({
-    // PV-FF fields
-    academicYear: '',
-    niveau: '',
-    filiere: '',
-    groupe: '',
-    // PV-CC fields
-    pvFfId: '',
-    module: '',
-    semester: '',
-    // PV-EFM fields
-    session: '',
-    // Common
-    physicalLocation: '',
-    notes: '',
+    academicYear: '', niveau: '', filiere: '', groupe: '',
+    pvFfId: '', module: '', semester: '', session: '',
+    physicalLocation: '', notes: '',
   });
 
-  const handleChange = (field, value) =>
+  const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    setFieldErrors((prev) => ({ ...prev, [field]: '' }));
+  };
 
-  const handleRemoveFile = (i) =>
-    setUploadedFiles((prev) => prev.filter((_, idx) => idx !== i));
+  // Fetch PV-FF list when switching to CC or EFM
+  useEffect(() => {
+    if (pvType === 'PV_CC' || pvType === 'PV_EFM') {
+      setPvFfLoading(true);
+      api.get('/pv-documents', { params: { type: 'PV_FF', per_page: 100 } })
+        .then(({ data }) => setPvFfList(data.data))
+        .catch(() => setPvFfList([]))
+        .finally(() => setPvFfLoading(false));
+    }
+  }, [pvType]);
+
+  // File handling
+  const addFiles = (fileList) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const valid = Array.from(fileList).filter((f) => {
+      if (!allowed.includes(f.type)) { setError(`Fichier "${f.name}" non accepté. PDF, JPG, PNG uniquement.`); return false; }
+      if (f.size > maxSize)          { setError(`Fichier "${f.name}" trop volumineux (max 10Mo).`);            return false; }
+      return true;
+    });
+    setUploadedFiles((prev) => [...prev, ...valid]);
+    setError('');
+  };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setDragActive(false);
-    // TODO Phase 8: handle actual file objects
+    addFiles(e.dataTransfer.files);
+  };
+
+  const handleFileInput = (e) => addFiles(e.target.files);
+  const handleRemoveFile = (i) => setUploadedFiles((prev) => prev.filter((_, idx) => idx !== i));
+
+  // Build payload based on type
+  const buildPayload = () => {
+    const base = { type: pvType, physical_location: form.physicalLocation || null, notes: form.notes || null };
+    if (pvType === 'PV_FF')  return { ...base, academic_year: form.academicYear, niveau: form.niveau, filiere: form.filiere, groupe: form.groupe };
+    if (pvType === 'PV_CC')  return { ...base, pv_ff_id: form.pvFfId, module: form.module, semester: form.semester };
+    if (pvType === 'PV_EFM') return { ...base, pv_ff_id: form.pvFfId, module: form.module, session: form.session };
+    return base;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setFieldErrors({});
+    setSubmitting(true);
+
+    try {
+      // Step 1: Create the PV document
+      const { data: created } = await api.post('/pv-documents', buildPayload());
+
+      // Step 2: Upload files if any
+      if (uploadedFiles.length > 0) {
+        await Promise.all(
+          uploadedFiles.map((file) => {
+            const fd = new FormData();
+            fd.append('file', file);
+            return api.post(`/pv-documents/${created.id}/files`, fd, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+          })
+        );
+      }
+
+      // Success — navigate to the new document's detail
+      onNavigate?.('documents');
+    } catch (err) {
+      if (err.response?.status === 422) {
+        // Laravel validation errors
+        const errs = err.response.data.errors ?? {};
+        setFieldErrors(errs);
+        setError('Veuillez corriger les erreurs dans le formulaire.');
+      } else {
+        setError(err.response?.data?.message ?? 'Une erreur est survenue. Réessayez.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const selectedTypeConfig = PV_TYPES.find((t) => t.key === pvType);
@@ -256,10 +269,7 @@ export const AddPV = ({ onNavigate }) => {
       {/* Breadcrumb */}
       <div>
         <div className="flex items-center gap-2 text-outline mb-3">
-          <button
-            onClick={() => onNavigate?.('documents')}
-            className="text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors"
-          >
+          <button onClick={() => onNavigate?.('documents')} className="text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors">
             Documents PV
           </button>
           <ChevronRight size={12} />
@@ -271,41 +281,26 @@ export const AddPV = ({ onNavigate }) => {
         </p>
       </div>
 
-      {/* ── Step 1: PV Type Selector ─────────────────────────────── */}
+      {/* Step 1: Type selector */}
       <div className="bg-white border border-outline-variant rounded-2xl p-8 shadow-sm space-y-4">
         <div className="flex items-center gap-3 border-b border-outline-variant/30 pb-4">
-          <div className="p-1.5 bg-primary rounded text-white">
-            <FileText size={18} />
-          </div>
+          <div className="p-1.5 bg-primary rounded text-white"><FileText size={18} /></div>
           <div>
-            <h3 className="text-sm font-black text-primary uppercase tracking-wider">
-              Étape 1 — Type de PV
-            </h3>
-            <p className="text-xs text-secondary font-medium mt-0.5">
-              Le formulaire s'adapte automatiquement selon votre choix.
-            </p>
+            <h3 className="text-sm font-black text-primary uppercase tracking-wider">Étape 1 — Type de PV</h3>
+            <p className="text-xs text-secondary font-medium mt-0.5">Le formulaire s'adapte automatiquement selon votre choix.</p>
           </div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {PV_TYPES.map((type) => {
             const isActive = pvType === type.key;
             const Icon = type.icon;
             return (
-              <button
-                key={type.key}
-                type="button"
-                onClick={() => setPvType(type.key)}
-                className={`flex flex-col items-start gap-3 p-5 rounded-2xl border-2 text-left transition-all duration-200 ${
-                  isActive ? type.activeColor : `bg-white ${type.color} hover:scale-[1.02]`
-                }`}
-              >
+              <button key={type.key} type="button" onClick={() => { setPvType(type.key); setFieldErrors({}); setError(''); }}
+                className={`flex flex-col items-start gap-3 p-5 rounded-2xl border-2 text-left transition-all duration-200 ${isActive ? type.activeColor : `bg-white ${type.color} hover:scale-[1.02]`}`}>
                 <Icon size={24} />
                 <div>
                   <p className="font-black text-sm tracking-tight">{type.short}</p>
-                  <p className={`text-xs font-medium mt-0.5 leading-relaxed ${isActive ? 'opacity-80' : 'opacity-70'}`}>
-                    {type.description}
-                  </p>
+                  <p className={`text-xs font-medium mt-0.5 leading-relaxed ${isActive ? 'opacity-80' : 'opacity-70'}`}>{type.description}</p>
                 </div>
               </button>
             );
@@ -313,70 +308,76 @@ export const AddPV = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* ── Step 2: Dynamic Form ─────────────────────────────────── */}
-      <form className="bg-white border border-outline-variant rounded-2xl shadow-xl shadow-black/[0.02] p-8 md:p-12 space-y-10">
+      {/* Step 2: Form */}
+      <form onSubmit={handleSubmit} className="bg-white border border-outline-variant rounded-2xl shadow-xl shadow-black/[0.02] p-8 md:p-12 space-y-10">
 
-        {/* Academic context — dynamic */}
+        {/* Global error */}
+        {error && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700">
+            <AlertCircle size={18} className="flex-shrink-0" />
+            <p className="text-sm font-semibold">{error}</p>
+          </div>
+        )}
+
+        {/* Dynamic fields */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 border-b border-outline-variant/30 pb-3">
-            <div className="p-1.5 bg-primary rounded text-white">
-              <School size={18} />
-            </div>
+            <div className="p-1.5 bg-primary rounded text-white"><School size={18} /></div>
             <div>
-              <h3 className="text-lg font-black text-primary tracking-tight uppercase">
-                {selectedTypeConfig?.label}
-              </h3>
+              <h3 className="text-lg font-black text-primary tracking-tight uppercase">{selectedTypeConfig?.label}</h3>
               <p className="text-xs text-secondary font-medium mt-0.5">
-                {pvType === 'PV_FF' && 'Informations de la promotion et de la filière.'}
-                {pvType === 'PV_CC' && 'Lien avec le PV-FF parent et informations du module.'}
-                {pvType === 'PV_EFM' && 'Lien avec le PV-FF parent, module et session d\'examen.'}
+                {pvType === 'PV_FF'  && 'Informations de la promotion et de la filière.'}
+                {pvType === 'PV_CC'  && 'Lien avec le PV-FF parent et informations du module.'}
+                {pvType === 'PV_EFM' && "Lien avec le PV-FF parent, module et session d'examen."}
               </p>
             </div>
           </div>
 
-          {pvType === 'PV_FF' && <FormPvFF form={form} onChange={handleChange} />}
-          {pvType === 'PV_CC' && <FormPvCC form={form} onChange={handleChange} />}
-          {pvType === 'PV_EFM' && <FormPvEFM form={form} onChange={handleChange} />}
+          {/* Field-level errors summary */}
+          {Object.keys(fieldErrors).length > 0 && (
+            <ul className="text-xs text-red-600 font-semibold space-y-1 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+              {Object.entries(fieldErrors).map(([k, msgs]) => (
+                <li key={k}>• {Array.isArray(msgs) ? msgs[0] : msgs}</li>
+              ))}
+            </ul>
+          )}
+
+          {pvType === 'PV_FF'  && <FormPvFF  form={form} onChange={handleChange} />}
+          {pvType === 'PV_CC'  && <FormPvCC  form={form} onChange={handleChange} pvFfList={pvFfList} pvFfLoading={pvFfLoading} />}
+          {pvType === 'PV_EFM' && <FormPvEFM form={form} onChange={handleChange} pvFfList={pvFfList} pvFfLoading={pvFfLoading} />}
         </section>
 
-        {/* ── File upload (common) ─────────────────────────────── */}
+        {/* File upload */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 border-b border-outline-variant/30 pb-3">
-            <div className="p-1.5 bg-primary rounded text-white rotate-3">
-              <Upload size={18} />
-            </div>
+            <div className="p-1.5 bg-primary rounded text-white rotate-3"><Upload size={18} /></div>
             <h3 className="text-lg font-black text-primary tracking-tight uppercase">Scans Numériques</h3>
           </div>
 
           <div
             className={`border-4 border-dashed rounded-2xl p-10 flex flex-col items-center justify-center text-center transition-all duration-300 cursor-pointer group ${
-              dragActive
-                ? 'border-primary bg-surface-container-low'
-                : 'border-outline-variant/30 bg-surface-container-low/20 hover:border-outline-variant/60 hover:bg-surface-container-low/40'
+              dragActive ? 'border-primary bg-surface-container-low' : 'border-outline-variant/30 bg-surface-container-low/20 hover:border-outline-variant/60 hover:bg-surface-container-low/40'
             }`}
             onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
             onDragLeave={() => setDragActive(false)}
             onDrop={handleDrop}
+            onClick={() => document.getElementById('file-input').click()}
           >
+            <input id="file-input" type="file" multiple accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFileInput} />
             <div className="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform text-primary border border-outline-variant/20">
               <Plus size={32} />
             </div>
             <p className="text-lg font-black text-primary tracking-tight">Déposer les scans ici</p>
-            <p className="text-xs text-secondary font-bold uppercase tracking-widest mt-1">
-              PDF, JPG, PNG acceptés • Max 10Mo
-            </p>
-            <button
-              type="button"
-              className="mt-6 px-6 py-2.5 bg-white border border-outline-variant/50 shadow-sm rounded-xl text-xs font-black uppercase tracking-[0.2em] text-primary hover:bg-surface transition-all"
-            >
+            <p className="text-xs text-secondary font-bold uppercase tracking-widest mt-1">PDF, JPG, PNG acceptés • Max 10Mo</p>
+            <p className="mt-3 px-6 py-2.5 bg-white border border-outline-variant/50 shadow-sm rounded-xl text-xs font-black uppercase tracking-[0.2em] text-primary">
               Parcourir les fichiers
-            </button>
+            </p>
           </div>
 
           {uploadedFiles.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {uploadedFiles.map((file, index) => (
-                <div key={index} className="flex items-center gap-4 p-4 bg-white border border-outline-variant/50 rounded-xl shadow-sm">
+              {uploadedFiles.map((file, i) => (
+                <div key={i} className="flex items-center gap-4 p-4 bg-white border border-outline-variant/50 rounded-xl shadow-sm">
                   <div className="w-10 h-10 bg-red-50 text-red-600 rounded flex items-center justify-center flex-shrink-0">
                     <FileText size={24} />
                   </div>
@@ -386,7 +387,7 @@ export const AddPV = ({ onNavigate }) => {
                       {(file.size / 1024 / 1024).toFixed(1)} MB
                     </p>
                   </div>
-                  <button type="button" onClick={() => handleRemoveFile(index)} className="p-2 text-outline hover:text-red-600 transition-colors">
+                  <button type="button" onClick={() => handleRemoveFile(i)} className="p-2 text-outline hover:text-red-600 transition-colors">
                     <X size={18} />
                   </button>
                 </div>
@@ -395,62 +396,52 @@ export const AddPV = ({ onNavigate }) => {
           )}
         </section>
 
-        {/* ── Physical archive (common) ────────────────────────── */}
+        {/* Physical archive */}
         <section className="space-y-6">
           <div className="flex items-center gap-3 border-b border-outline-variant/30 pb-3">
-            <div className="p-1.5 bg-primary rounded text-white -rotate-3">
-              <Database size={18} />
-            </div>
+            <div className="p-1.5 bg-primary rounded text-white -rotate-3"><Database size={18} /></div>
             <h3 className="text-lg font-black text-primary tracking-tight uppercase">Archive Physique</h3>
           </div>
-
           <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10 flex gap-4">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
               <Info size={16} />
             </div>
             <p className="text-xs font-medium text-primary-container leading-relaxed">
-              Référence du classeur physique dans les archives. Format recommandé : Rayon / Armoire / Dossier.
+              Référence du classeur physique. Format recommandé : Rayon / Armoire / Dossier.
             </p>
           </div>
-
           <div className="space-y-1.5">
             <FieldLabel>Localisation précise</FieldLabel>
-            <input
-              type="text"
-              value={form.physicalLocation}
-              onChange={(e) => handleChange('physicalLocation', e.target.value)}
-              placeholder="Ex: A2/3/15"
-              className={inputCls}
-            />
+            <input type="text" value={form.physicalLocation} onChange={(e) => handleChange('physicalLocation', e.target.value)} placeholder="Ex: A2/3/15" className={inputCls} />
           </div>
-
           <div className="space-y-1.5">
             <FieldLabel>Notes (optionnel)</FieldLabel>
-            <textarea
-              rows={3}
-              value={form.notes}
-              onChange={(e) => handleChange('notes', e.target.value)}
-              placeholder="Observations, remarques particulières..."
-              className={`${inputCls} resize-none`}
-            />
+            <textarea rows={3} value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Observations, remarques particulières…" className={`${inputCls} resize-none`} />
           </div>
         </section>
 
-        {/* ── Actions ─────────────────────────────────────────── */}
+        {/* Actions */}
         <div className="flex gap-4 pt-4">
-          <button
-            type="button"
-            onClick={() => onNavigate?.('documents')}
-            className="flex-1 px-6 py-3 border border-outline-variant rounded-xl bg-white text-primary font-bold text-sm uppercase tracking-[0.1em] hover:bg-surface-container-low transition-all"
-          >
+          <button type="button" onClick={() => onNavigate?.('documents')}
+            className="flex-1 px-6 py-3 border border-outline-variant rounded-xl bg-white text-primary font-bold text-sm uppercase tracking-[0.1em] hover:bg-surface-container-low transition-all">
             Annuler
           </button>
-          <button
-            type="submit"
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm uppercase tracking-[0.1em] hover:bg-primary-container transition-all shadow-lg shadow-primary/20"
-          >
-            <Save size={18} />
-            Enregistrer le {selectedTypeConfig?.short}
+          <button type="submit" disabled={submitting}
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm uppercase tracking-[0.1em] hover:bg-primary-container transition-all shadow-lg shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed">
+            {submitting ? (
+              <>
+                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Enregistrement…
+              </>
+            ) : (
+              <>
+                <Save size={18} />
+                Enregistrer le {selectedTypeConfig?.short}
+              </>
+            )}
           </button>
         </div>
       </form>
