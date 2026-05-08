@@ -7,8 +7,14 @@ import {
 import api from '../services/api';
 
 // ── Static options ─────────────────────────────────────────────────
-const NIVEAUX        = ['Technicien', 'Technicien Spécialisé (TS)', 'BTS'];
-const ACADEMIC_YEARS = ['2024-2025', '2023-2024', '2022-2023', '2021-2022'];
+const NIVEAUX = ['Technicien Spécialisé', 'Technicien', 'Qualification', 'Spécialisation'];
+
+// Generate last 10 academic years dynamically
+const currentYear = new Date().getFullYear();
+const ACADEMIC_YEARS = Array.from({ length: 10 }, (_, i) => {
+  const y = currentYear - i;
+  return `${y}-${y + 1}`;
+});
 const SEMESTERS      = ['Semestre 1', 'Semestre 2'];
 
 const PV_TYPES = [
@@ -55,10 +61,20 @@ const FormPvFF = ({ form, onChange }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
     <div className="space-y-1.5">
       <FieldLabel>Année universitaire *</FieldLabel>
-      <select value={form.academicYear} onChange={(e) => onChange('academicYear', e.target.value)} className={selectCls}>
-        <option value="">— Sélectionner —</option>
-        {ACADEMIC_YEARS.map((y) => <option key={y}>{y}</option>)}
-      </select>
+      <input
+        list="academic-years-list"
+        type="text"
+        value={form.academicYear}
+        onChange={(e) => onChange('academicYear', e.target.value)}
+        placeholder="Ex: 2019-2020"
+        className={inputCls}
+      />
+      <datalist id="academic-years-list">
+        {ACADEMIC_YEARS.map((y) => <option key={y} value={y} />)}
+      </datalist>
+      <p className="text-[10px] text-outline font-medium ml-1">
+        Sélectionnez une suggestion ou saisissez manuellement.
+      </p>
     </div>
     <div className="space-y-1.5">
       <FieldLabel>Niveau d'étude *</FieldLabel>
@@ -69,11 +85,11 @@ const FormPvFF = ({ form, onChange }) => (
     </div>
     <div className="space-y-1.5">
       <FieldLabel>Filière / Programme *</FieldLabel>
-      <input type="text" value={form.filiere} onChange={(e) => onChange('filiere', e.target.value)} placeholder="Ex: Génie Informatique" className={inputCls} />
+      <input type="text" value={form.filiere} onChange={(e) => onChange('filiere', e.target.value)} placeholder="Ex: Développement Digital" className={inputCls} />
     </div>
     <div className="space-y-1.5">
       <FieldLabel>Groupe *</FieldLabel>
-      <input type="text" value={form.groupe} onChange={(e) => onChange('groupe', e.target.value)} placeholder="Ex: G1" className={inputCls} />
+      <input type="text" value={form.groupe} onChange={(e) => onChange('groupe', e.target.value)} placeholder="Ex: dev202" className={inputCls} />
     </div>
   </div>
 );
@@ -237,7 +253,7 @@ export const AddPV = ({ onNavigate }) => {
         await Promise.all(
           uploadedFiles.map((file) => {
             const fd = new FormData();
-            fd.append('file', file);
+            fd.append('files[]', file);
             return api.post(`/pv-documents/${created.id}/files`, fd, {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
