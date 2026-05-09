@@ -173,6 +173,40 @@ class PvDocumentController extends Controller
         return response()->json(['message' => 'Document supprimé avec succès.']);
     }
 
+    /**
+     * GET /api/dashboard/stats
+     * Returns aggregate stats for the dashboard.
+     */
+    public function dashboardStats(): JsonResponse
+    {
+        // Total count
+        $total = PvDocument::count();
+
+        // Count by type
+        $byType = PvDocument::selectRaw('type, COUNT(*) as count')
+            ->groupBy('type')
+            ->pluck('count', 'type');
+
+        // Count by status
+        $byStatus = PvDocument::selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        // Monthly activity for current year
+        $monthly = PvDocument::selectRaw('MONTH(created_at) as month, COUNT(*) as count')
+            ->whereYear('created_at', now()->year)
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
+
+        return response()->json([
+            'total'     => $total,
+            'by_type'   => $byType,
+            'by_status' => $byStatus,
+            'monthly'   => $monthly,
+        ]);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────
 
     /**
@@ -182,7 +216,6 @@ class PvDocumentController extends Controller
     {
         $required = $update ? 'sometimes' : 'required';
 
-        // Common fields for all types
         $common = [
             'physical_location' => ['nullable', 'string', 'max:100'],
             'notes'             => ['nullable', 'string'],
@@ -199,17 +232,17 @@ class PvDocumentController extends Controller
             ],
             'PV_CC' => [
                 ...$common,
-                'type'          => [$required, Rule::in(['PV_CC'])],
-                'pv_ff_id'      => [$required, 'exists:pv_documents,id'],
-                'module'        => [$required, 'string', 'max:100'],
-                'semester'      => [$required, 'string', 'max:20'],
+                'type'     => [$required, Rule::in(['PV_CC'])],
+                'pv_ff_id' => [$required, 'exists:pv_documents,id'],
+                'module'   => [$required, 'string', 'max:100'],
+                'semester' => [$required, 'string', 'max:20'],
             ],
             'PV_EFM' => [
                 ...$common,
-                'type'          => [$required, Rule::in(['PV_EFM'])],
-                'pv_ff_id'      => [$required, 'exists:pv_documents,id'],
-                'module'        => [$required, 'string', 'max:100'],
-                'session'       => [$required, Rule::in(['Ordinaire', 'Rattrapage'])],
+                'type'     => [$required, Rule::in(['PV_EFM'])],
+                'pv_ff_id' => [$required, 'exists:pv_documents,id'],
+                'module'   => [$required, 'string', 'max:100'],
+                'session'  => [$required, Rule::in(['Ordinaire', 'Rattrapage'])],
             ],
             default => [],
         };

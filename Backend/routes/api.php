@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PvDocumentController;
 use App\Http\Controllers\Api\PvFileController;
+use App\Http\Controllers\Api\ActivityLogController;
+use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -34,16 +36,19 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ── PV Documents ──────────────────────────────────────────────
+    // Search + filters handled via index() params:
+    // GET /api/pv-documents?search=...&type=...&status=...&niveau=...&filiere=...&groupe=...&academic_year=...
+
     // Read: all authenticated roles
-    Route::get('pv-documents',          [PvDocumentController::class, 'index']);
+    Route::get('pv-documents',              [PvDocumentController::class, 'index']);
     Route::get('pv-documents/{pvDocument}', [PvDocumentController::class, 'show']);
 
     // Create/Update: admin + gestionnaire + archiviste
     Route::middleware('role:admin,gestionnaire,archiviste')->group(function () {
-        Route::post('pv-documents',                          [PvDocumentController::class, 'store']);
-        Route::put('pv-documents/{pvDocument}',              [PvDocumentController::class, 'update']);
-        Route::patch('pv-documents/{pvDocument}',            [PvDocumentController::class, 'update']);
-        Route::patch('pv-documents/{pvDocument}/status',     [PvDocumentController::class, 'updateStatus']);
+        Route::post('pv-documents',                      [PvDocumentController::class, 'store']);
+        Route::put('pv-documents/{pvDocument}',          [PvDocumentController::class, 'update']);
+        Route::patch('pv-documents/{pvDocument}',        [PvDocumentController::class, 'update']);
+        Route::patch('pv-documents/{pvDocument}/status', [PvDocumentController::class, 'updateStatus']);
     });
 
     // Delete: admin only
@@ -52,14 +57,25 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ── File Upload & Download ─────────────────────────────────────
-    // Upload: admin + gestionnaire + archiviste
     Route::middleware('role:admin,gestionnaire,archiviste')->group(function () {
         Route::post('pv-documents/{pvDocument}/files', [PvFileController::class, 'store']);
         Route::delete('pv-files/{pvFile}',             [PvFileController::class, 'destroy']);
     });
 
-    // Download: all authenticated roles
     Route::get('pv-files/{pvFile}/download', [PvFileController::class, 'download']);
 
-    
+    // ── Activity Log (Phase 6) ────────────────────────────────────
+    Route::middleware('role:admin,gestionnaire')->group(function () {
+        Route::get('activity-logs',          [ActivityLogController::class, 'index']);
+        Route::get('activity-logs/stats',    [ActivityLogController::class, 'stats']);
+    });
+
+    // ── Dashboard stats (Phase 6) — all roles ─────────────────────
+    Route::get('dashboard/stats', [PvDocumentController::class, 'dashboardStats']);
+
+    // ── User Management (Phase 8) — admin only ────────────────────
+    Route::middleware('role:admin')->group(function () {
+        Route::apiResource('users', UserController::class);
+        Route::patch('users/{user}/toggle-active', [UserController::class, 'toggleActive']);
+    });
 });

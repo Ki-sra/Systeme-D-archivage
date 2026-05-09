@@ -103,7 +103,7 @@ export default function App() {
     }
 
     switch (activePage) {
-      case 'dashboard': return <Dashboard onNavigate={setActivePage} />;
+      case 'dashboard': return <Dashboard onNavigate={setActivePage} user={user} />;
       case 'documents': return <DocumentsList onViewPv={openPvDetail} />;
       case 'add':       return <AddPV onNavigate={setActivePage} />;
       case 'search':    return <AdvancedSearch onViewPv={openPvDetail} />;
