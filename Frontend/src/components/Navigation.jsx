@@ -1,20 +1,10 @@
 import React from 'react';
 import {
-  BarChart3,
-  FileText,
-  PlusCircle,
-  Search,
-  History,
-  Settings,
-  Menu,
-  Bell,
-  LogOut,
-  Shield,
-  User,
+  BarChart3, FileText, PlusCircle, Search,
+  History, Settings, Menu, Bell, LogOut, Shield, User,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
-// ── Role badge colors ─────────────────────────────────────────────
 const ROLE_STYLES = {
   admin:        'bg-purple-100 text-purple-700',
   gestionnaire: 'bg-blue-100 text-blue-700',
@@ -29,23 +19,45 @@ const ROLE_LABELS = {
   consultant:   'Consultant',
 };
 
-// ── Sidebar ───────────────────────────────────────────────────────
+// ── Menu items with role restrictions ────────────────────────────
+// allowedRoles: undefined = tous, sinon liste des rôles autorisés
+const ALL_MENU_ITEMS = [
+  { id: 'dashboard', label: 'Tableau de bord',   icon: BarChart3  },
+  { id: 'documents', label: 'Documents PV',       icon: FileText   },
+  {
+    id: 'add',
+    label: 'Nouvel Ajout',
+    icon: PlusCircle,
+    allowedRoles: ['admin', 'gestionnaire', 'archiviste'], // consultant ❌
+  },
+  { id: 'search',   label: 'Recherche Avancée',  icon: Search  },
+  {
+    id: 'activity',
+    label: "Journal d'activité",
+    icon: History,
+    allowedRoles: ['admin', 'gestionnaire'],
+  },
+  {
+    id: 'users',
+    label: 'Utilisateurs',
+    icon: User,
+    allowedRoles: ['admin'],
+  },
+  {
+    id: 'settings',
+    label: 'Paramètres',
+    icon: Settings,
+    allowedRoles: ['admin'],
+  },
+];
+
 export const Sidebar = ({ activePage, onPageChange, user, onLogout }) => {
-  const menuItems = [
-    { id: 'dashboard', label: 'Tableau de bord',   icon: BarChart3  },
-    { id: 'documents', label: 'Documents PV',       icon: FileText   },
-    { id: 'add',       label: 'Nouvel Ajout',       icon: PlusCircle },
-    { id: 'search',    label: 'Recherche Avancée',  icon: Search     },
-    { id: 'activity',  label: "Journal d'activité", icon: History    },
-  ];
+  const role = user?.role;
 
-  // Admin-only menu items
-  if (user?.role === 'admin') {
-    menuItems.push({ id: 'users',    label: 'Utilisateurs', icon: User     });
-    menuItems.push({ id: 'settings', label: 'Paramètres',   icon: Settings });
-  }
+  const menuItems = ALL_MENU_ITEMS.filter(
+    (item) => !item.allowedRoles || item.allowedRoles.includes(role)
+  );
 
-  // Initials from user name
   const initials = user?.name
     ? user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'U';
@@ -97,14 +109,11 @@ export const Sidebar = ({ activePage, onPageChange, user, onLogout }) => {
 
       {/* User info + logout */}
       <div className="mt-auto px-4 pt-4 border-t border-outline-variant/30 space-y-3">
-        {/* Role badge */}
         {user?.role && (
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${ROLE_STYLES[user.role] ?? 'bg-surface-container text-secondary'}`}>
-            {ROLE_LABELS[user.role] ?? user.role}
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${ROLE_STYLES[role] ?? 'bg-surface-container text-secondary'}`}>
+            {ROLE_LABELS[role] ?? role}
           </span>
         )}
-
-        {/* User row */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white text-sm font-black flex-shrink-0">
             {initials}
@@ -145,7 +154,6 @@ export const TopBar = ({ activeLabel, user, onLogout }) => {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Quick search */}
         <div className="relative hidden sm:block">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
           <input
@@ -155,13 +163,11 @@ export const TopBar = ({ activeLabel, user, onLogout }) => {
           />
         </div>
 
-        {/* Notifications */}
         <button className="p-2 text-secondary hover:bg-surface-container-high rounded-full relative">
           <Bell size={20} />
           <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
         </button>
 
-        {/* User avatar + logout */}
         <div className="flex items-center gap-2 pl-2 border-l border-outline-variant/30">
           <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-black">
             {initials}
