@@ -108,7 +108,7 @@ export default function App() {
       case 'add':       return <AddPV onNavigate={setActivePage} />;
       case 'search':    return <AdvancedSearch onViewPv={openPvDetail} />;
       case 'activity':  return <ActivityLog />;
-      case 'pv-detail': return <PvDetail pvId={selectedPvId} onBack={closePvDetail} />;
+      case 'pv-detail': return <PvDetail pvId={selectedPvId} onBack={closePvDetail} onViewPv={openPvDetail} />;
       case 'users':     return <UserManagement />;
       case 'settings':  return <Settings />;
       default:          return <Dashboard />;

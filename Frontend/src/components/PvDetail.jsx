@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, FileText, Download, CheckCircle,
-  Clock, Upload, Trash2, Edit3, AlertTriangle,
+  Clock, Upload, Trash2, AlertTriangle,
   File, Eye, ChevronRight, User, Calendar,
-  MapPin, BookOpen, Users, AlertCircle, X, Save,
+  MapPin, BookOpen, Users, AlertCircle, X,
+  Link, GitBranch,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import api from '../services/api';
 
-// ── Status lifecycle ───────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────
 const LIFECYCLE = [
   { key: 'BROUILLON',         label: 'Brouillon',         color: 'bg-slate-400'  },
   { key: 'EN_ATTENTE',        label: 'En attente',        color: 'bg-amber-400'  },
@@ -23,6 +24,12 @@ const STATUS_BADGE = {
   VALIDE_PAPIER:     'bg-blue-50 text-blue-700 border-blue-200',
   ARCHIVE_NUMERIQUE: 'bg-violet-50 text-violet-700 border-violet-200',
   ARCHIVE_COMPLET:   'bg-green-50 text-green-700 border-green-200',
+};
+
+const TYPE_BADGE = {
+  PV_FF:  'bg-purple-50 text-purple-700',
+  PV_CC:  'bg-blue-50 text-blue-700',
+  PV_EFM: 'bg-green-50 text-green-700',
 };
 
 const fmtDate = (iso) =>
@@ -44,7 +51,7 @@ const InfoRow = ({ icon: Icon, label, value }) => (
 const StatusTimeline = ({ currentStatus }) => {
   const currentIdx = LIFECYCLE.findIndex((s) => s.key === currentStatus);
   return (
-    <div className="flex items-center gap-0">
+    <div className="flex items-center">
       {LIFECYCLE.map((step, idx) => {
         const done    = idx <= currentIdx;
         const current = idx === currentIdx;
@@ -70,27 +77,123 @@ const StatusTimeline = ({ currentStatus }) => {
   );
 };
 
+// ── Parent PV-FF card (for CC/EFM) ────────────────────────────────
+const ParentPvCard = ({ parentId, onViewPv }) => {
+  const [parent, setParent] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/pv-documents/${parentId}`)
+      .then(({ data }) => setParent(data.document))
+      .catch(() => setParent(null))
+      .finally(() => setLoading(false));
+  }, [parentId]);
+
+  if (loading) return <div className="h-16 bg-surface-container-low rounded-xl animate-pulse" />;
+  if (!parent)  return null;
+
+  return (
+    <div
+      onClick={() => onViewPv?.(parent.id)}
+      className="flex items-center gap-4 p-4 bg-purple-50 border border-purple-200 rounded-xl cursor-pointer hover:bg-purple-100 transition-all group"
+    >
+      <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600 flex-shrink-0">
+        <FileText size={20} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-0.5">PV-FF Parent</p>
+        <p className="text-sm font-black text-purple-800 truncate">
+          {parent.filiere} · {parent.niveau} · G{parent.groupe}
+        </p>
+        <p className="text-[10px] font-bold text-purple-500">{parent.academic_year}</p>
+      </div>
+      <ChevronRight size={16} className="text-purple-400 group-hover:text-purple-600 flex-shrink-0" />
+    </div>
+  );
+};
+
+// ── Children list (for PV-FF) ─────────────────────────────────────
+const ChildrenList = ({ pvFfId, onViewPv }) => {
+  const [children, setChildren] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+
+  useEffect(() => {
+    api.get('/pv-documents', { params: { pv_ff_id: pvFfId, per_page: 50 } })
+      .then(({ data }) => setChildren(data.data))
+      .catch(() => setChildren([]))
+      .finally(() => setLoading(false));
+  }, [pvFfId]);
+
+  if (loading) return (
+    <div className="space-y-2">
+      {[1,2].map((i) => <div key={i} className="h-14 bg-surface-container-low rounded-xl animate-pulse" />)}
+    </div>
+  );
+
+  if (children.length === 0) return (
+    <div className="flex flex-col items-center py-8 gap-2 border-2 border-dashed border-outline-variant/40 rounded-xl">
+      <GitBranch size={24} className="text-outline-variant" />
+      <p className="text-xs font-bold text-secondary uppercase tracking-widest">Aucun document lié</p>
+      <p className="text-[10px] text-outline">Les PV-CC et PV-EFM liés apparaîtront ici.</p>
+    </div>
+  );
+
+  const ccList  = children.filter((c) => c.type === 'PV_CC');
+  const efmList = children.filter((c) => c.type === 'PV_EFM');
+
+  return (
+    <div className="space-y-3">
+      {[{ label: 'PV-CC — Contrôles Continus', list: ccList, cls: 'bg-blue-50 border-blue-200 text-blue-800', dot: 'bg-blue-400' },
+        { label: 'PV-EFM — Examens Fin de Module', list: efmList, cls: 'bg-green-50 border-green-200 text-green-800', dot: 'bg-green-400' }
+      ].map(({ label, list, cls, dot }) =>
+        list.length > 0 && (
+          <div key={label} className="space-y-2">
+            <p className="text-[10px] font-black text-secondary uppercase tracking-widest flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${dot}`} />
+              {label} ({list.length})
+            </p>
+            {list.map((child) => (
+              <motion.div
+                key={child.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                onClick={() => onViewPv?.(child.id)}
+                className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:brightness-95 transition-all group ${cls}`}
+              >
+                <FileText size={16} className="flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-black truncate">{child.module ?? '—'}</p>
+                  <p className="text-[10px] font-medium opacity-70">
+                    {child.semester ?? child.session ?? ''} · #{child.id}
+                  </p>
+                </div>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${STATUS_BADGE[child.status] ?? ''}`}>
+                  {LIFECYCLE.find((s) => s.key === child.status)?.label ?? child.status}
+                </span>
+                <ChevronRight size={14} className="opacity-40 group-hover:opacity-100 flex-shrink-0" />
+              </motion.div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+};
+
 // ── Main Component ────────────────────────────────────────────────
-export const PvDetail = ({ pvId, onBack }) => {
-  const [document,     setDocument]     = useState(null);
-  const [files,        setFiles]        = useState([]);
-  const [history,      setHistory]      = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState('');
-
-  // Status update
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [showStatusMenu, setShowStatusMenu] = useState(false);
-
-  // File upload
-  const [uploading,  setUploading]  = useState(false);
-  const [uploadErr,  setUploadErr]  = useState('');
-
-  // Delete confirm
+export const PvDetail = ({ pvId, onBack, onViewPv }) => {
+  const [document,      setDocument]      = useState(null);
+  const [files,         setFiles]         = useState([]);
+  const [history,       setHistory]       = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState('');
+  const [updatingStatus,setUpdatingStatus]= useState(false);
+  const [showStatusMenu,setShowStatusMenu]= useState(false);
+  const [uploading,     setUploading]     = useState(false);
+  const [uploadErr,     setUploadErr]     = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
 
-  // ── Fetch document ────────────────────────────────────────────
   const fetchDocument = async () => {
     setLoading(true);
     setError('');
@@ -99,7 +202,7 @@ export const PvDetail = ({ pvId, onBack }) => {
       setDocument(data.document);
       setFiles(data.document.files ?? []);
       setHistory(data.history ?? []);
-    } catch (err) {
+    } catch {
       setError('Impossible de charger ce document.');
     } finally {
       setLoading(false);
@@ -108,14 +211,12 @@ export const PvDetail = ({ pvId, onBack }) => {
 
   useEffect(() => { if (pvId) fetchDocument(); }, [pvId]);
 
-  // ── Status update ─────────────────────────────────────────────
   const handleStatusUpdate = async (newStatus) => {
     setUpdatingStatus(true);
     setShowStatusMenu(false);
     try {
       const { data } = await api.patch(`/pv-documents/${pvId}/status`, { status: newStatus });
       setDocument(data);
-      // Refresh history
       const { data: fresh } = await api.get(`/pv-documents/${pvId}`);
       setHistory(fresh.history ?? []);
     } catch (err) {
@@ -125,7 +226,7 @@ export const PvDetail = ({ pvId, onBack }) => {
     }
   };
 
-  // ── File upload ───────────────────────────────────────────────
+  // ✅ Fixed: files[] instead of file
   const handleFileUpload = async (e) => {
     const fileList = Array.from(e.target.files);
     if (!fileList.length) return;
@@ -135,13 +236,12 @@ export const PvDetail = ({ pvId, onBack }) => {
       await Promise.all(
         fileList.map((file) => {
           const fd = new FormData();
-          fd.append('file', file);
+          fd.append('files[]', file); // ✅ correct key
           return api.post(`/pv-documents/${pvId}/files`, fd, {
             headers: { 'Content-Type': 'multipart/form-data' },
           });
         })
       );
-      // Refresh files list
       const { data } = await api.get(`/pv-documents/${pvId}`);
       setFiles(data.document.files ?? []);
     } catch (err) {
@@ -152,22 +252,18 @@ export const PvDetail = ({ pvId, onBack }) => {
     }
   };
 
-  // ── File download ─────────────────────────────────────────────
   const handleDownload = async (file) => {
     try {
-      const response = await api.get(`/pv-files/${file.id}/download`, { responseType: 'blob' });
-      const url  = URL.createObjectURL(response.data);
-      const link = document.createElement('a'); // safe: DOM, not state
-      link.href     = url;
-      link.download = file.original_name;
-      link.click();
+      const res  = await api.get(`/pv-files/${file.id}/download`, { responseType: 'blob' });
+      const url  = URL.createObjectURL(res.data);
+      const link = window.document.createElement('a');
+      link.href = url; link.download = file.original_name; link.click();
       URL.revokeObjectURL(url);
     } catch {
       setError('Impossible de télécharger ce fichier.');
     }
   };
 
-  // ── File delete ───────────────────────────────────────────────
   const handleFileDelete = async (fileId) => {
     try {
       await api.delete(`/pv-files/${fileId}`);
@@ -177,7 +273,6 @@ export const PvDetail = ({ pvId, onBack }) => {
     }
   };
 
-  // ── Document delete ───────────────────────────────────────────
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -190,36 +285,34 @@ export const PvDetail = ({ pvId, onBack }) => {
     }
   };
 
-  // ── Next possible statuses ────────────────────────────────────
+  // Navigate to another PV (parent or child)
+  const handleViewRelated = (id) => onViewPv?.(id) ?? onBack?.();
+
   const currentIdx   = LIFECYCLE.findIndex((s) => s.key === document?.status);
   const nextStatuses = LIFECYCLE.filter((_, i) => i === currentIdx + 1 || i === currentIdx - 1);
 
-  // ── Loading / error states ────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="space-y-8 animate-pulse">
-        <div className="h-10 bg-surface-container-low rounded-xl w-1/3" />
-        <div className="h-32 bg-surface-container-low rounded-2xl" />
-        <div className="h-64 bg-surface-container-low rounded-2xl" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="space-y-8 animate-pulse">
+      <div className="h-10 bg-surface-container-low rounded-xl w-1/3" />
+      <div className="h-32 bg-surface-container-low rounded-2xl" />
+      <div className="h-64 bg-surface-container-low rounded-2xl" />
+    </div>
+  );
 
-  if (error && !document) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <AlertCircle size={40} className="text-red-400" />
-        <p className="text-red-600 font-bold">{error}</p>
-        <button onClick={onBack} className="px-6 py-2 bg-primary text-white rounded-xl text-sm font-black uppercase tracking-widest">
-          Retour
-        </button>
-      </div>
-    );
-  }
+  if (error && !document) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4">
+      <AlertCircle size={40} className="text-red-400" />
+      <p className="text-red-600 font-bold">{error}</p>
+      <button onClick={onBack} className="px-6 py-2 bg-primary text-white rounded-xl text-sm font-black uppercase tracking-widest">Retour</button>
+    </div>
+  );
 
   const docLabel = document?.type === 'PV_FF'
     ? `${document.filiere} · G${document.groupe}`
     : document?.module ?? `PV #${document?.id}`;
+
+  const isPvFF  = document?.type === 'PV_FF';
+  const isChild = document?.type === 'PV_CC' || document?.type === 'PV_EFM';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -244,7 +337,14 @@ export const PvDetail = ({ pvId, onBack }) => {
             <ChevronRight size={12} />
             <span className="text-[10px] font-bold uppercase tracking-widest text-primary">REF: #{document?.id}</span>
           </div>
-          <h1 className="text-3xl font-black text-primary tracking-tight">{docLabel}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-black text-primary tracking-tight">{docLabel}</h1>
+            {document?.type && (
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${TYPE_BADGE[document.type] ?? 'bg-surface-container text-secondary'}`}>
+                {document.type.replace('_', '-')}
+              </span>
+            )}
+          </div>
           {document?.status && (
             <span className={`inline-flex items-center mt-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${STATUS_BADGE[document.status]}`}>
               {LIFECYCLE.find((s) => s.key === document.status)?.label ?? document.status}
@@ -252,44 +352,34 @@ export const PvDetail = ({ pvId, onBack }) => {
           )}
         </div>
 
-        {/* Actions */}
+        {/* Status action */}
         <div className="flex gap-2 flex-shrink-0 relative">
           <button
             onClick={() => setShowStatusMenu((v) => !v)}
             disabled={updatingStatus}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-primary-container transition-all shadow-lg shadow-primary/10 disabled:opacity-60"
           >
-            {updatingStatus ? (
-              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-            ) : <CheckCircle size={16} />}
+            {updatingStatus
+              ? <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+              : <CheckCircle size={16} />}
             Changer statut
           </button>
-
-          {/* Status dropdown */}
           <AnimatePresence>
             {showStatusMenu && (
               <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
+                initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
                 className="absolute top-12 right-0 z-50 bg-white border border-outline-variant rounded-xl shadow-xl overflow-hidden min-w-[200px]"
               >
-                {nextStatuses.map((s) => (
-                  <button
-                    key={s.key}
-                    onClick={() => handleStatusUpdate(s.key)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-xs font-black uppercase tracking-wider text-left hover:bg-surface-container-low transition-colors"
-                  >
-                    <span className={`w-2.5 h-2.5 rounded-full ${s.color}`} />
-                    {s.label}
-                  </button>
-                ))}
-                {nextStatuses.length === 0 && (
-                  <p className="px-4 py-3 text-xs text-secondary font-medium">Aucun changement disponible.</p>
-                )}
+                {nextStatuses.length === 0
+                  ? <p className="px-4 py-3 text-xs text-secondary font-medium">Aucun changement disponible.</p>
+                  : nextStatuses.map((s) => (
+                    <button key={s.key} onClick={() => handleStatusUpdate(s.key)}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-xs font-black uppercase tracking-wider text-left hover:bg-surface-container-low transition-colors">
+                      <span className={`w-2.5 h-2.5 rounded-full ${s.color}`} />
+                      {s.label}
+                    </button>
+                  ))
+                }
               </motion.div>
             )}
           </AnimatePresence>
@@ -304,17 +394,44 @@ export const PvDetail = ({ pvId, onBack }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-        {/* Left: Info + Files */}
+        {/* Left */}
         <div className="lg:col-span-8 space-y-8">
+
+          {/* ── Parent PV-FF (for CC/EFM only) ─────────────────── */}
+          {isChild && document?.pv_ff_id && (
+            <div className="bg-white border border-outline-variant rounded-2xl p-6 shadow-sm space-y-4">
+              <h3 className="text-sm font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                <Link size={16} />
+                Document Parent
+              </h3>
+              <ParentPvCard parentId={document.pv_ff_id} onViewPv={handleViewRelated} />
+            </div>
+          )}
 
           {/* Metadata */}
           <div className="bg-white border border-outline-variant rounded-2xl p-8 shadow-sm">
             <h3 className="text-sm font-black text-primary uppercase tracking-widest mb-6">Informations académiques</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <InfoRow icon={FileText}  label="Type de PV"           value={document?.type} />
-              <InfoRow icon={Calendar}  label="Année universitaire"  value={document?.academic_year} />
-              <InfoRow icon={BookOpen}  label="Filière / Module"     value={document?.filiere ?? document?.module} />
-              <InfoRow icon={Users}     label="Niveau & Groupe"      value={document?.niveau ? `${document.niveau} — G${document.groupe ?? 'N/A'}` : (document?.semester ?? document?.session)} />
+              {isPvFF ? (
+                <>
+                  <InfoRow icon={FileText}  label="Type de PV"           value="PV Fin de Formation" />
+                  <InfoRow icon={Calendar}  label="Année universitaire"  value={document?.academic_year} />
+                  <InfoRow icon={BookOpen}  label="Filière"              value={document?.filiere} />
+                  <InfoRow icon={Users}     label="Niveau & Groupe"      value={`${document?.niveau ?? '—'} — G${document?.groupe ?? '?'}`} />
+                </>
+              ) : document?.type === 'PV_CC' ? (
+                <>
+                  <InfoRow icon={FileText}  label="Type de PV"   value="PV Contrôles Continus" />
+                  <InfoRow icon={BookOpen}  label="Module"       value={document?.module} />
+                  <InfoRow icon={Calendar}  label="Semestre"     value={document?.semester} />
+                </>
+              ) : (
+                <>
+                  <InfoRow icon={FileText}  label="Type de PV"   value="PV Examen Fin de Module" />
+                  <InfoRow icon={BookOpen}  label="Module"       value={document?.module} />
+                  <InfoRow icon={Calendar}  label="Session"      value={document?.session} />
+                </>
+              )}
               <InfoRow icon={MapPin}    label="Localisation physique" value={document?.physical_location} />
               <InfoRow icon={User}      label="Créé par"             value={document?.creator?.name} />
               <InfoRow icon={Calendar}  label="Date de création"     value={fmtDate(document?.created_at)} />
@@ -330,18 +447,26 @@ export const PvDetail = ({ pvId, onBack }) => {
             )}
           </div>
 
+          {/* ── Children (for PV-FF only) ───────────────────────── */}
+          {isPvFF && (
+            <div className="bg-white border border-outline-variant rounded-2xl p-8 shadow-sm space-y-4">
+              <h3 className="text-sm font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                <GitBranch size={16} />
+                Documents liés (CC & EFM)
+              </h3>
+              <ChildrenList pvFfId={document.id} onViewPv={handleViewRelated} />
+            </div>
+          )}
+
           {/* Files */}
           <div className="bg-white border border-outline-variant rounded-2xl p-8 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-sm font-black text-primary uppercase tracking-widest">Scans & Fichiers ({files.length})</h3>
               <label className={`flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-sm cursor-pointer hover:bg-primary-container ${uploading ? 'opacity-60 cursor-not-allowed' : ''}`}>
                 <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFileUpload} disabled={uploading} />
-                {uploading ? (
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                  </svg>
-                ) : <Upload size={16} />}
+                {uploading
+                  ? <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                  : <Upload size={16} />}
                 {uploading ? 'Envoi…' : 'Ajouter un scan'}
               </label>
             </div>
@@ -371,12 +496,8 @@ export const PvDetail = ({ pvId, onBack }) => {
                       </p>
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleDownload(file)} className="p-1.5 text-secondary hover:text-primary transition-colors" title="Télécharger">
-                        <Download size={16} />
-                      </button>
-                      <button onClick={() => handleFileDelete(file.id)} className="p-1.5 text-secondary hover:text-red-600 transition-colors" title="Supprimer">
-                        <Trash2 size={16} />
-                      </button>
+                      <button onClick={() => handleDownload(file)} className="p-1.5 text-secondary hover:text-primary transition-colors"><Download size={16} /></button>
+                      <button onClick={() => handleFileDelete(file.id)} className="p-1.5 text-secondary hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
                     </div>
                   </motion.div>
                 ))}
@@ -385,7 +506,7 @@ export const PvDetail = ({ pvId, onBack }) => {
           </div>
         </div>
 
-        {/* Right: History + Danger zone */}
+        {/* Right */}
         <div className="lg:col-span-4 space-y-6">
 
           {/* History */}
@@ -424,29 +545,24 @@ export const PvDetail = ({ pvId, onBack }) => {
               <h3 className="text-xs font-black uppercase tracking-widest">Zone de danger</h3>
             </div>
             <p className="text-xs font-medium text-red-600 leading-relaxed">La suppression d'un document est irréversible.</p>
-
             {!deleteConfirm ? (
-              <button
-                onClick={() => setDeleteConfirm(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 border border-red-300 bg-white text-red-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
-              >
-                <Trash2 size={14} />
-                Supprimer ce PV
+              <button onClick={() => setDeleteConfirm(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 border border-red-300 bg-white text-red-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">
+                <Trash2 size={14} /> Supprimer ce PV
               </button>
             ) : (
               <div className="space-y-2">
                 <p className="text-xs font-black text-red-700 text-center">Confirmer la suppression ?</p>
                 <div className="flex gap-2">
-                  <button onClick={() => setDeleteConfirm(false)} className="flex-1 py-2 border border-red-200 bg-white text-red-600 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-red-50 transition-all">
+                  <button onClick={() => setDeleteConfirm(false)}
+                    className="flex-1 py-2 border border-red-200 bg-white text-red-600 rounded-xl font-black text-xs uppercase tracking-wider hover:bg-red-50 transition-all">
                     Annuler
                   </button>
-                  <button onClick={handleDelete} disabled={deleting} className="flex-1 py-2 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-red-700 transition-all disabled:opacity-60 flex items-center justify-center gap-1">
-                    {deleting ? (
-                      <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                      </svg>
-                    ) : <Trash2 size={13} />}
+                  <button onClick={handleDelete} disabled={deleting}
+                    className="flex-1 py-2 bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-wider hover:bg-red-700 transition-all disabled:opacity-60 flex items-center justify-center gap-1">
+                    {deleting
+                      ? <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>
+                      : <Trash2 size={13} />}
                     Supprimer
                   </button>
                 </div>
