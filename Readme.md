@@ -138,11 +138,37 @@ php artisan tinker
 Puis dans Tinker :
 
 ```php
+// Admin user
 \App\Models\User::create([
     'name'      => 'Super Admin',
-    'email'     => 'admin@institution.ma',
-    'password'  => bcrypt('password123'),
+    'email'     => 'admin@ofppt.ma',
+    'password'  => bcrypt('admin1234'),
     'role'      => 'admin',
+    'is_active' => true,
+]);
+
+// Example users
+\App\Models\User::create([
+    'name'      => 'Archiviste OFPPT',
+    'email'     => 'archiviste@ofppt.ma',
+    'password'  => bcrypt('password123'),
+    'role'      => 'archiviste',
+    'is_active' => true,
+]);
+
+\App\Models\User::create([
+    'name'      => 'Gestionnaire OFPPT',
+    'email'     => 'gestionnaire@ofppt.ma',
+    'password'  => bcrypt('password123'),
+    'role'      => 'gestionnaire',
+    'is_active' => true,
+]);
+
+\App\Models\User::create([
+    'name'      => 'Consultant OFPPT',
+    'email'     => 'consultant@ofppt.ma',
+    'password'  => bcrypt('password123'),
+    'role'      => 'consultant',
     'is_active' => true,
 ]);
 ```

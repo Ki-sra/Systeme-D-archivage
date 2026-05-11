@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   BarChart3, FileText, PlusCircle, Search,
-  History, Settings, Menu, Bell, LogOut, Shield, User,
+  History, Settings, Menu, Bell, LogOut, User,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -66,9 +66,11 @@ export const Sidebar = ({ activePage, onPageChange, user, onLogout }) => {
     <aside className="fixed left-0 top-0 h-screen w-[260px] border-r border-outline-variant bg-white flex flex-col py-4 z-50">
       {/* Logo */}
       <div className="px-6 mb-8 flex items-center gap-3">
-        <div className="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center text-white">
-          <Shield size={24} />
-        </div>
+        <img
+          src="/src/assets/OFPPT-Mini-Logo.png"
+          alt="OFPPT Logo"
+          className="w-10 h-10 object-contain"
+        />
         <div>
           <p className="text-lg font-bold text-primary leading-none">Système PV</p>
           <p className="text-[10px] text-secondary font-medium mt-1 uppercase tracking-wider">
@@ -148,7 +150,11 @@ export const TopBar = ({ activeLabel, user, onLogout }) => {
         <button className="p-2 hover:bg-surface-container-high rounded-full transition-colors text-primary lg:hidden">
           <Menu size={20} />
         </button>
-        <h2 className="text-xl font-black tracking-tight text-primary uppercase">Gestion des PV</h2>
+        <img
+          src="/src/assets/Ofppt-logo-horizontal.png"
+          alt="OFPPT Logo"
+          className="h-8 object-contain"
+        />
         <div className="h-4 w-px bg-outline-variant/50 hidden md:block" />
         <span className="text-sm font-semibold text-secondary hidden md:block">{activeLabel}</span>
       </div>

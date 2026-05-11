@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { authService } from '../services/api';
 
@@ -55,9 +55,11 @@ export default function Login({ onLogin }) {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
-            <Shield size={26} className="text-white" />
-          </div>
+          <img
+            src="/src/assets/OFPPT-Mini-Logo.png"
+            alt="OFPPT Logo"
+            className="w-12 h-12 object-contain"
+          />
           <div>
             <p className="text-white font-black text-lg leading-none tracking-tight">Système PV</p>
             <p className="text-white/50 text-[11px] font-bold uppercase tracking-widest mt-0.5">
@@ -104,10 +106,21 @@ export default function Login({ onLogin }) {
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <Shield size={22} className="text-white" />
-            </div>
+            <img
+              src="/src/assets/OFPPT-Mini-Logo.png"
+              alt="OFPPT Logo"
+              className="w-10 h-10 object-contain"
+            />
             <p className="text-primary font-black text-lg tracking-tight">Système PV</p>
+          </div>
+
+          {/* Centered OFPPT Logo */}
+          <div className="flex justify-center mb-8">
+            <img
+              src="/src/assets/OFPPT-Mini-Logo.png"
+              alt="OFPPT Logo"
+              className="w-16 h-16 object-contain"
+            />
           </div>
 
           {/* Heading */}
