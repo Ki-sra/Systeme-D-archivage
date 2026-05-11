@@ -250,15 +250,9 @@ export const AddPV = ({ onNavigate }) => {
 
       // Step 2: Upload files if any
       if (uploadedFiles.length > 0) {
-        await Promise.all(
-          uploadedFiles.map((file) => {
-            const fd = new FormData();
-            fd.append('files[]', file);
-            return api.post(`/pv-documents/${created.id}/files`, fd, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-            });
-          })
-        );
+        const fd = new FormData();
+        uploadedFiles.forEach((file) => fd.append('files[]', file));
+        await api.post(`/pv-documents/${created.id}/files`, fd);
       }
 
       // Success — navigate to the new document's detail

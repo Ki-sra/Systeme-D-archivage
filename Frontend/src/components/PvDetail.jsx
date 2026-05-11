@@ -237,9 +237,7 @@ export const PvDetail = ({ pvId, onBack, onViewPv }) => {
         fileList.map((file) => {
           const fd = new FormData();
           fd.append('files[]', file); // ✅ correct key
-          return api.post(`/pv-documents/${pvId}/files`, fd, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
+          return api.post(`/pv-documents/${pvId}/files`, fd);
         })
       );
       const { data } = await api.get(`/pv-documents/${pvId}`);

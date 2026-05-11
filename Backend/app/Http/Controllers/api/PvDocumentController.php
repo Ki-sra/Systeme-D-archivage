@@ -25,7 +25,11 @@ class PvDocumentController extends Controller
             $query->where('type', $request->type);
         }
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $statuses = $request->status;
+            if (! is_array($statuses)) {
+                $statuses = explode(',', $statuses);
+            }
+            $query->whereIn('status', $statuses);
         }
         if ($request->filled('academic_year')) {
             $query->where('academic_year', $request->academic_year);
