@@ -147,7 +147,7 @@ export default function Login({ onLogin }) {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="exemple@institution.dz"
+                placeholder="Votre Email"
                 className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/50 rounded-xl text-sm font-semibold text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary focus:bg-white outline-none transition-all"
               />
             </div>
