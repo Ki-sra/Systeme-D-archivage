@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authService } from './services/api';
+import { useSessionTimeout } from './hooks/useSessionTimeout';
 import { Sidebar, TopBar } from './components/Navigation';
 import { Dashboard } from './components/Dashboard';
 import { DocumentsList } from './components/DocumentsList';
@@ -53,6 +54,9 @@ export default function App() {
     localStorage.removeItem('auth_user');
     setUser(null);
   };
+
+  // ── Session timeout management ───────────────────────────────────
+  useSessionTimeout(user, handleLogout, 15); // 15 minutes timeout
 
   const openPvDetail  = (pvId) => { setSelectedPvId(pvId); setActivePage('pv-detail'); };
   const closePvDetail = ()     => { setSelectedPvId(null); setActivePage('documents'); };
