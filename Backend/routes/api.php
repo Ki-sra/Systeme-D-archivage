@@ -65,10 +65,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('pv-files/{pvFile}/download', [PvFileController::class, 'download']);
 
     // ── Activity Log (Phase 6) ────────────────────────────────────
+    // Full log: admin + gestionnaire only
     Route::middleware('role:admin,gestionnaire')->group(function () {
-        Route::get('activity-logs',          [ActivityLogController::class, 'index']);
-        Route::get('activity-logs/stats',    [ActivityLogController::class, 'stats']);
+        Route::get('activity-logs', [ActivityLogController::class, 'index']);
     });
+
+    // Stats only (for dashboard): all authenticated roles
+    Route::get('activity-logs/stats', [ActivityLogController::class, 'stats']);
 
     // ── Dashboard stats (Phase 6) — all roles ─────────────────────
     Route::get('dashboard/stats', [PvDocumentController::class, 'dashboardStats']);
