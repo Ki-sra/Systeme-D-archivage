@@ -138,7 +138,7 @@ export default function App() {
       <Sidebar activePage={activePage} onPageChange={setActivePage} user={user} onLogout={handleLogout} />
 
       <main className="flex-1 ml-[260px] min-h-screen flex flex-col">
-        <TopBar activeLabel={getPageLabel()} user={user} onLogout={handleLogout} />
+        <TopBar activeLabel={getPageLabel()} user={user} onLogout={handleLogout} onNavigate={openPvDetail} />
 
         <div className="p-8 lg:p-12 max-w-[1440px] mx-auto w-full flex-1">
           <AnimatePresence mode="wait">

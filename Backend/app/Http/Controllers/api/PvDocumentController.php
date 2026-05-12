@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\NotificationController;
 use App\Models\ActivityLog;
 use App\Models\PvDocument;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +35,12 @@ class PvDocumentController extends Controller
         if ($request->filled('academic_year')) {
             $query->where('academic_year', $request->academic_year);
         }
+        if ($request->filled('year_from')) {
+            $query->where('academic_year', '>=', $request->year_from);
+        }
+        if ($request->filled('year_to')) {
+            $query->where('academic_year', '<=', $request->year_to);
+        }
         if ($request->filled('filiere')) {
             $query->where('filiere', 'like', "%{$request->filiere}%");
         }
@@ -58,8 +65,15 @@ class PvDocumentController extends Controller
             });
         }
 
+        // ── Sorting ────────────────────────────────────────────────
+        $allowedSorts = ['created_at', 'academic_year', 'status', 'type'];
+        $sortColumn   = in_array($request->get('sort'), $allowedSorts)
+            ? $request->get('sort')
+            : 'created_at';
+        $sortDir = $request->get('direction') === 'asc' ? 'asc' : 'desc';
+
         $documents = $query
-            ->orderBy('created_at', 'desc')
+            ->orderBy($sortColumn, $sortDir)
             ->paginate($request->get('per_page', 15));
 
         return response()->json($documents);
@@ -71,6 +85,11 @@ class PvDocumentController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        // Pre-validate the type before loading type-specific rules
+        $request->validate([
+            'type' => ['required', Rule::in(['PV_FF', 'PV_CC', 'PV_EFM'])],
+        ]);
+
         $validated = $request->validate($this->rules($request->type));
 
         $document = PvDocument::create([
@@ -80,6 +99,15 @@ class PvDocumentController extends Controller
         ]);
 
         ActivityLog::record('CREATE', $document, $this->label($document));
+
+        // Notify managers that a new document has been created
+        NotificationController::notifyManagers(
+            'created',
+            'Nouveau document créé',
+            'Un nouveau ' . $document->type . ' a été créé par ' . auth()->user()->name . '.',
+            $document->id,
+            $this->label($document)
+        );
 
         return response()->json($document->load('creator:id,name'), 201);
     }
@@ -161,6 +189,22 @@ class PvDocumentController extends Controller
             'old_status' => $oldStatus,
             'new_status' => $request->status,
         ]);
+
+        // Notify managers about status change
+        $statusLabels = [
+            'EN_ATTENTE'       => 'En attente de validation',
+            'VALIDE_PAPIER'    => 'Validé (papier)',
+            'ARCHIVE_NUMERIQUE'=> 'Archivé numériquement',
+            'ARCHIVE_COMPLET'  => 'Archivage complet',
+            'BROUILLON'        => 'Brouillon',
+        ];
+        NotificationController::notifyManagers(
+            'status_changed',
+            'Statut mis à jour',
+            '"' . $this->label($pvDocument) . '" est maintenant : ' . ($statusLabels[$request->status] ?? $request->status) . '.',
+            $pvDocument->id,
+            $this->label($pvDocument)
+        );
 
         return response()->json($pvDocument->fresh());
     }

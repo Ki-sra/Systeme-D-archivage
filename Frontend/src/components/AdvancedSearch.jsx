@@ -218,7 +218,8 @@ export const AdvancedSearch = ({ onViewPv }) => {
     if (niveau)      params.niveau        = niveau;
     if (filiere)     params.filiere       = filiere;
     if (groupe)      params.groupe        = groupe;
-    if (yearFrom)    params.academic_year = yearFrom;
+    if (yearFrom)    params.year_from     = yearFrom;
+    if (yearTo)      params.year_to       = yearTo;
     const selectedStatuses = STATUS_OPTIONS
       .filter((s) => activeStatuses[s.value])
       .map((s) => s.value);
@@ -228,7 +229,7 @@ export const AdvancedSearch = ({ onViewPv }) => {
     if (sortBy === 'date_desc') { params.sort = 'created_at'; params.direction = 'desc'; }
     if (sortBy === 'date_asc')  { params.sort = 'created_at'; params.direction = 'asc';  }
     return params;
-  }, [globalQuery, pvType, niveau, filiere, groupe, yearFrom, activeStatuses, sortBy]);
+  }, [globalQuery, pvType, niveau, filiere, groupe, yearFrom, yearTo, activeStatuses, sortBy]);
 
   const fetchResults = useCallback(async (page = 1) => {
     setLoading(true); setError(''); setSearched(true);

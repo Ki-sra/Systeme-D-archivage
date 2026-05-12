@@ -67,8 +67,9 @@ export const Settings = () => {
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw]         = useState(false);
 
-  // Profile settings
-  const [profile, setProfile] = useState({ name: '', email: '' });
+  // Profile settings — pre-filled from current session
+  const storedUser = (() => { try { return JSON.parse(localStorage.getItem('auth_user') ?? '{}'); } catch { return {}; } })();
+  const [profile, setProfile] = useState({ name: storedUser.name ?? '', email: storedUser.email ?? '' });
 
   // Password change
   const [passwords, setPasswords] = useState({ current: '', newPw: '', confirm: '' });

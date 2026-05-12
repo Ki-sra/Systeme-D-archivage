@@ -1,44 +1,87 @@
 import { useEffect, useRef, useCallback } from 'react';
 
-// ── Session timeout hook ───────────────────────────────────────────
-export function useSessionTimeout(user, onLogout, timeoutMinutes = 15) {
-  const timeoutRef = useRef(null);
-  const lastActivityRef = useRef(Date.now());
+// ── Non-blocking session-expired toast ────────────────────────────
+// Injects a temporary floating notification into the DOM without
+// using alert() (which blocks the JS thread and freezes the UI).
+function showSessionExpiredToast() {
+  if (document.getElementById('session-toast')) return; // avoid duplicates
 
-  // ── Reset timeout on user activity ───────────────────────────────
+  const toast = document.createElement('div');
+  toast.id = 'session-toast';
+  Object.assign(toast.style, {
+    position:        'fixed',
+    top:             '24px',
+    left:            '50%',
+    transform:       'translateX(-50%)',
+    zIndex:          '99999',
+    background:      '#1e293b',
+    color:           '#f8fafc',
+    padding:         '14px 24px',
+    borderRadius:    '12px',
+    fontSize:        '13px',
+    fontWeight:      '700',
+    letterSpacing:   '0.05em',
+    boxShadow:       '0 8px 32px rgba(0,0,0,0.25)',
+    display:         'flex',
+    alignItems:      'center',
+    gap:             '10px',
+    pointerEvents:   'none',
+    opacity:         '0',
+    transition:      'opacity 0.3s ease',
+    whiteSpace:      'nowrap',
+  });
+
+  toast.innerHTML = `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+         stroke="#facc15" stroke-width="2.5" stroke-linecap="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <circle cx="12" cy="16" r="0.5" fill="#facc15"/>
+    </svg>
+    Session expirée — déconnexion automatique…
+  `;
+
+  document.body.appendChild(toast);
+
+  // Fade in
+  requestAnimationFrame(() => { toast.style.opacity = '1'; });
+
+  // Fade out and remove after 3 s
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 400);
+  }, 3000);
+}
+
+// ── Session timeout hook ──────────────────────────────────────────
+export function useSessionTimeout(user, onLogout, timeoutMinutes = 15) {
+  const timeoutRef       = useRef(null);
+  const lastActivityRef  = useRef(Date.now());
+
+  // Reset (or start) the inactivity countdown
   const resetTimeout = useCallback(() => {
-    if (!user) return; // Only reset if user is logged in
+    if (!user) return;
 
     lastActivityRef.current = Date.now();
 
-    // Clear existing timeout
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-    // Set new timeout (15 minutes = 15 * 60 * 1000 ms)
     const timeoutMs = timeoutMinutes * 60 * 1000;
     timeoutRef.current = setTimeout(() => {
-      // Session expired - logout user
-      console.log('Session expired due to inactivity');
-
-      // Show message (you can replace this with a toast notification)
-      alert('Session expirée en raison d\'inactivité');
-
-      // Logout
-      onLogout();
+      // Show non-blocking toast, then logout after it is visible
+      showSessionExpiredToast();
+      setTimeout(onLogout, 3200);
     }, timeoutMs);
   }, [user, onLogout, timeoutMinutes]);
 
-  // ── Activity event handler ───────────────────────────────────────
+  // Throttle wrapper — reset at most once every 30 s to avoid perf issues
   const handleActivity = useCallback(() => {
     resetTimeout();
   }, [resetTimeout]);
 
-  // ── Setup event listeners ────────────────────────────────────────
   useEffect(() => {
     if (!user) {
-      // User not logged in - clear any existing timeout
+      // Logged out — clear any pending timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -46,32 +89,13 @@ export function useSessionTimeout(user, onLogout, timeoutMinutes = 15) {
       return;
     }
 
-    // User is logged in - setup activity listeners and start timeout
-    const events = [
-      'mousedown',
-      'mousemove',
-      'keypress',
-      'scroll',
-      'touchstart',
-      'click'
-    ];
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
 
-    // Add event listeners
-    events.forEach(event => {
-      document.addEventListener(event, handleActivity, true);
-    });
+    events.forEach((event) => document.addEventListener(event, handleActivity, true));
+    resetTimeout(); // start the initial countdown
 
-    // Start initial timeout
-    resetTimeout();
-
-    // Cleanup function
     return () => {
-      // Remove event listeners
-      events.forEach(event => {
-        document.removeEventListener(event, handleActivity, true);
-      });
-
-      // Clear timeout
+      events.forEach((event) => document.removeEventListener(event, handleActivity, true));
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -79,9 +103,8 @@ export function useSessionTimeout(user, onLogout, timeoutMinutes = 15) {
     };
   }, [user, handleActivity, resetTimeout]);
 
-  // ── Return current timeout status (optional for debugging) ──────
   return {
     lastActivity: lastActivityRef.current,
-    isActive: !!timeoutRef.current
+    isActive:     !!timeoutRef.current,
   };
 }

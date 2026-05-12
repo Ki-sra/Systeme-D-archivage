@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\PvDocumentController;
 use App\Http\Controllers\Api\PvFileController;
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -64,16 +65,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('pv-files/{pvFile}/download', [PvFileController::class, 'download']);
 
-    // ── Activity Log (Phase 6) ────────────────────────────────────
+    // ── Activity Log ──────────────────────────────────────────────
+    // Stats (all authenticated roles — used by dashboard)
+    Route::get('activity-logs/stats', [ActivityLogController::class, 'stats']);
+
     // Full log: admin + gestionnaire only
     Route::middleware('role:admin,gestionnaire')->group(function () {
         Route::get('activity-logs', [ActivityLogController::class, 'index']);
     });
 
-    // Stats only (for dashboard): all authenticated roles
-    Route::get('activity-logs/stats', [ActivityLogController::class, 'stats']);
-
-    // ── Dashboard stats (Phase 6) — all roles ─────────────────────
+    // ── Dashboard stats — all roles ───────────────────────────────
     Route::get('dashboard/stats', [PvDocumentController::class, 'dashboardStats']);
 
     // ── User Management (Phase 8) — admin only ────────────────────
@@ -81,4 +82,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('users', UserController::class);
         Route::patch('users/{user}/toggle-active', [UserController::class, 'toggleActive']);
     });
+
+    // ── Notifications — all authenticated roles ────────────────────
+    Route::get ('notifications',             [NotificationController::class, 'index']);
+    Route::patch('notifications/read-all',   [NotificationController::class, 'markAllRead']);
+    Route::patch('notifications/{id}/read',  [NotificationController::class, 'markRead']);
 });

@@ -49,7 +49,7 @@ class AuthController extends Controller
         );
 
         // Log the login action
-        ActivityLog::record('VIEW', $user, $user->name, ['action' => 'login']);
+        ActivityLog::record('LOGIN', $user, $user->name, ['action' => 'login']);
 
         return response()->json([
             'token' => $token->plainTextToken,
@@ -68,7 +68,7 @@ class AuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        ActivityLog::record('VIEW', $request->user(), $request->user()->name, ['action' => 'logout']);
+        ActivityLog::record('LOGOUT', $request->user(), $request->user()->name, ['action' => 'logout']);
 
         $request->user()->currentAccessToken()->delete();
 

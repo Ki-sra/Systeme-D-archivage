@@ -270,12 +270,6 @@ export const UserManagement = () => {
   const openCreate = () => { setEditingUser(null); setFieldErrors({}); setModalOpen(true); };
   const openEdit   = (u) => { setEditingUser(u);   setFieldErrors({}); setModalOpen(true); };
 
-  const filtered = users.filter((u) => {
-    const q = searchQuery.toLowerCase();
-    const matchSearch = !q || u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
-    const matchRole   = !roleFilter || u.role === roleFilter;
-    return matchSearch && matchRole;
-  });
 
   return (
     <>
@@ -358,7 +352,7 @@ export const UserManagement = () => {
                     <div className="h-10 bg-surface-container-low rounded-xl animate-pulse" />
                   </td></tr>
                 ))
-              ) : filtered.length === 0 ? (
+              ) : users.length === 0 ? (
                 <tr><td colSpan={5} className="px-6 py-20 text-center">
                   <div className="flex flex-col items-center gap-3 text-secondary">
                     <Shield size={40} className="text-outline-variant" />
@@ -369,7 +363,7 @@ export const UserManagement = () => {
                   </div>
                 </td></tr>
               ) : (
-                filtered.map((u, idx) => (
+                users.map((u, idx) => (
                   <motion.tr key={u.id}
                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.04 }}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ofpptMiniLogo from '../assets/OFPPT-Mini-Logo.png';
 import { Eye, EyeOff, LogIn, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { authService } from '../services/api';
@@ -56,7 +57,7 @@ export default function Login({ onLogin }) {
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
           <img
-            src="/src/assets/OFPPT-Mini-Logo.png"
+          src={ofpptMiniLogo}
             alt="OFPPT Logo"
             className="w-12 h-12 object-contain"
           />
@@ -79,20 +80,10 @@ export default function Login({ onLogin }) {
             Plateforme sécurisée de gestion et d'archivage des procès-verbaux académiques.
           </p>
 
-          {/* Feature pills */}
-          <div className="flex flex-wrap gap-3 pt-2">
-            {['🔐 Accès par rôle', '📁 Archivage numérique', '🔍 Recherche avancée', '📊 Statistiques'].map((f) => (
-              <span key={f} className="px-3 py-1.5 bg-white/10 border border-white/15 rounded-full text-white/70 text-xs font-bold tracking-wide">
-                {f}
-              </span>
-            ))}
-          </div>
+         
         </div>
 
-        {/* Footer */}
-        <p className="relative z-10 text-white/30 text-xs font-bold uppercase tracking-widest">
-          © 2024 Système PV — v1.0
-        </p>
+        
       </motion.div>
 
       {/* ── Right panel — login form ────────────────────────────── */}
@@ -107,21 +98,14 @@ export default function Login({ onLogin }) {
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3">
             <img
-              src="/src/assets/OFPPT-Mini-Logo.png"
+            src={ofpptMiniLogo}
               alt="OFPPT Logo"
               className="w-10 h-10 object-contain"
             />
             <p className="text-primary font-black text-lg tracking-tight">Système PV</p>
           </div>
 
-          {/* Centered OFPPT Logo */}
-          <div className="flex justify-center mb-8">
-            <img
-              src="/src/assets/OFPPT-Mini-Logo.png"
-              alt="OFPPT Logo"
-              className="w-16 h-16 object-contain"
-            />
-          </div>
+          
 
           {/* Heading */}
           <div className="space-y-2">

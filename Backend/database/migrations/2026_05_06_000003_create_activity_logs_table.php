@@ -18,7 +18,7 @@ return new class extends Migration
                   ->nullOnDelete();
 
             // What they did
-            $table->enum('action', ['CREATE', 'UPDATE', 'DELETE', 'UPLOAD', 'VIEW', 'VALIDATE', 'EXPORT']);
+            $table->enum('action', ['CREATE', 'UPDATE', 'DELETE', 'UPLOAD', 'VIEW', 'VALIDATE', 'EXPORT', 'LOGIN', 'LOGOUT']);
 
             // What they did it on (polymorphic-style)
             $table->string('target_type');   // e.g. "PvDocument", "PvFile"

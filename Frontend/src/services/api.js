@@ -1,23 +1,29 @@
 import axios from 'axios';
 
 // ── Axios instance configured for the Laravel API ─────────────────
+// NOTE: No default Content-Type here — it is set dynamically in the
+// request interceptor to allow FormData requests to keep their
+// correct multipart/form-data boundary (set automatically by the browser).
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: '/api',
   headers: {
-    'Content-Type': 'application/json',
-    'Accept':       'application/json',
+    Accept: 'application/json',
   },
 });
 
-// ── Request interceptor: attach token automatically ───────────────
+// ── Request interceptor ───────────────────────────────────────────
 api.interceptors.request.use((config) => {
+  // Attach Bearer token automatically
   const token = localStorage.getItem('auth_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  if (config.data instanceof FormData) {
-    delete config.headers['Content-Type'];
+  // Set JSON Content-Type only for non-FormData payloads.
+  // When data is FormData, let the browser set multipart/form-data
+  // with the correct boundary automatically.
+  if (!(config.data instanceof FormData)) {
+    config.headers['Content-Type'] = 'application/json';
   }
 
   return config;

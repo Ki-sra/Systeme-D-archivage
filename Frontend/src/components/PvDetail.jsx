@@ -35,6 +35,18 @@ const TYPE_BADGE = {
 const fmtDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
+const ACTION_MAP = {
+  CREATE:   'Création',
+  UPDATE:   'Modification',
+  DELETE:   'Suppression',
+  UPLOAD:   'Ajout de fichier',
+  VIEW:     'Consultation',
+  VALIDATE: 'Validation',
+  EXPORT:   'Export',
+  LOGIN:    'Connexion',
+  LOGOUT:   'Déconnexion',
+};
+
 // ── Sub-components ────────────────────────────────────────────────
 const InfoRow = ({ icon: Icon, label, value }) => (
   <div className="flex items-start gap-3">
@@ -525,7 +537,9 @@ export const PvDetail = ({ pvId, onBack, onViewPv }) => {
                         <Clock size={14} className="text-secondary" />
                       </div>
                       <div className="flex-1 pt-0.5">
-                        <p className="text-xs font-black text-primary">{entry.action}</p>
+                        <p className="text-xs font-black text-primary">
+                          {ACTION_MAP[entry.action] ?? entry.action}
+                        </p>
                         <p className="text-[10px] font-medium text-secondary">{entry.user?.name}</p>
                         <p className="text-[10px] font-bold text-outline mt-1">{fmtDate(entry.created_at)}</p>
                       </div>

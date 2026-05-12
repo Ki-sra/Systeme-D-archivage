@@ -134,11 +134,12 @@ class UserController extends Controller
 
         $name = $user->name;
 
+        // Log BEFORE deletion so the target model still exists
+        ActivityLog::record('DELETE', $user, "Utilisateur supprimé : {$name}");
+
         // Revoke all tokens
         $user->tokens()->delete();
         $user->delete();
-
-        ActivityLog::record('DELETE', auth()->user(), "Utilisateur supprimé : {$name}");
 
         return response()->json(['message' => "Utilisateur « {$name} » supprimé avec succès."]);
     }
